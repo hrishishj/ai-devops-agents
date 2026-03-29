@@ -1,0 +1,113 @@
+[build-system]
+requires      = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name        = "ai-devops-agents"
+version     = "1.0.0"
+description = "Azure + GitHub AI agents for software development and IT operations automation"
+readme      = "README.md"
+requires-python = ">=3.12"
+license     = { text = "MIT" }
+
+authors = [
+    { name = "AI DevOps Team" }
+]
+
+keywords = [
+    "azure", "openai", "github", "devops", "agents",
+    "code-review", "it-ops", "automation"
+]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: System :: Systems Administration",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["agents*", "api*", "shared*"]
+
+# ──────────────────────────────────────────────
+# Ruff (linter + formatter)
+# ──────────────────────────────────────────────
+
+[tool.ruff]
+target-version = "py312"
+line-length    = 100
+src            = ["agents", "api", "shared", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "S",   # flake8-bandit (security)
+    "N",   # pep8-naming
+    "ANN", # flake8-annotations (type hints)
+    "RUF", # ruff-specific
+]
+
+ignore = [
+    "ANN101",  # Missing type annotation for `self`
+    "ANN102",  # Missing type annotation for `cls`
+    "ANN401",  # Dynamically typed expressions (Any)
+    "S101",    # Use of assert (fine in tests)
+    "S603",    # subprocess call (we deliberately allow it in IT Ops)
+    "E501",    # Line too long — handled by formatter
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["ANN", "S", "N"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+# ──────────────────────────────────────────────
+# mypy
+# ──────────────────────────────────────────────
+
+[tool.mypy]
+python_version         = "3.12"
+strict                 = true
+ignore_missing_imports = true
+warn_return_any        = true
+warn_unused_configs    = true
+exclude                = ["tests/", "infra/"]
+
+[[tool.mypy.overrides]]
+module = [
+    "azure.*",
+    "openai.*",
+    "redis.*",
+    "github.*",
+]
+ignore_missing_imports = true
+
+# ──────────────────────────────────────────────
+# Coverage
+# ──────────────────────────────────────────────
+
+[tool.coverage.run]
+source  = ["agents", "api", "shared"]
+omit    = ["tests/*", "infra/*", "*/__init__.py"]
+branch  = true
+
+[tool.coverage.report]
+show_missing         = true
+skip_covered         = false
+fail_under           = 80
+exclude_lines        = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]

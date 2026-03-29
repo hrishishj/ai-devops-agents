@@ -1,0 +1,63 @@
+# ============================================================
+# Agent Prompts Configuration
+# Edit these to tune agent behaviour without changing code.
+# Keys map to prompt identifiers loaded by each agent.
+# ============================================================
+
+coding_copilot:
+  # Temperature for code review (low = more deterministic)
+  temperature: 0.1
+  max_tokens: 3000
+  # Maximum diff size (chars) sent to the LLM — truncated beyond this
+  max_diff_chars: 12000
+  # Number of historical reviews to fetch from Cosmos for context
+  history_limit: 3
+  # Severity levels ordered by priority
+  severity_order:
+    - critical
+    - warning
+    - suggestion
+    - info
+  # Categories the agent should classify findings into
+  categories:
+    - bug
+    - security
+    - perf
+    - style
+    - docs
+
+it_ops:
+  temperature: 0.0
+  max_tokens: 2048
+  # Confidence threshold above which auto-resolution is triggered.
+  # Override via CONFIDENCE_THRESHOLD_AUTO_RESOLVE env variable.
+  confidence_threshold: 0.85
+  # Maximum log text (chars) sent to the LLM
+  max_log_chars: 8000
+  # Runbooks the agent is allowed to trigger automatically
+  allowed_runbooks:
+    - restart-service
+    - scale-out-aks
+    - clear-disk-space
+    - rotate-credentials
+    - flush-cache
+    - failover-db
+    - drain-node
+
+test_security:
+  temperature: 0.2
+  max_tokens: 3000
+  # Maximum source snippet (chars) per file sent for test generation
+  max_snippet_chars: 3000
+  # Maximum number of generated tests shown in a PR comment
+  max_tests_in_comment: 5
+  # File path patterns treated as test files
+  test_file_patterns:
+    - "**/test_*.py"
+    - "**/*_test.py"
+    - "**/spec/**"
+    - "**/__tests__/**"
+  # SAST severity levels that block PR merge (if enforced via branch protection)
+  blocking_severities:
+    - critical
+    - high

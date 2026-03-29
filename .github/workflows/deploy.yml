@@ -1,0 +1,182 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: staging
+        type: choice
+        options: [staging, production]
+
+env:
+  REGISTRY:          ${{ secrets.ACR_LOGIN_SERVER }}
+  IMAGE_NAME:        ai-devops-agents
+  RESOURCE_GROUP:    ${{ secrets.AZURE_RESOURCE_GROUP }}
+  CONTAINER_APP:     ai-devops-agents-app
+  CONSUMER_APP:      ai-devops-agents-consumer
+
+jobs:
+  # ------------------------------------------------------------------ #
+  # Build & push Docker image
+  # ------------------------------------------------------------------ #
+  build:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      image_tag: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Log in to ACR
+        run: az acr login --name ${{ secrets.ACR_NAME }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=,format=short
+            type=ref,event=branch
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+
+  # ------------------------------------------------------------------ #
+  # Run integration tests
+  # ------------------------------------------------------------------ #
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 15
+    environment: staging
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run integration tests
+        env:
+          AZURE_OPENAI_ENDPOINT:   ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+          AZURE_OPENAI_API_KEY:    ${{ secrets.AZURE_OPENAI_API_KEY }}
+          COSMOS_ENDPOINT:         ${{ secrets.COSMOS_ENDPOINT }}
+          COSMOS_KEY:              ${{ secrets.COSMOS_KEY }}
+          REDIS_HOST:              ${{ secrets.REDIS_HOST }}
+          REDIS_PASSWORD:          ${{ secrets.REDIS_PASSWORD }}
+          GITHUB_TOKEN:            ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pytest tests/integration/ -v --tb=short -x \
+            --junitxml=test-results/integration-results.xml
+
+      - name: Publish results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: test-results/integration-results.xml
+          check_name: Integration Test Results
+
+  # ------------------------------------------------------------------ #
+  # Deploy webhook API Container App
+  # ------------------------------------------------------------------ #
+  deploy-api:
+    name: Deploy API
+    runs-on: ubuntu-latest
+    needs: [build, integration-test]
+    timeout-minutes: 15
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+
+    steps:
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy API Container App
+        run: |
+          az containerapp update \
+            --name ${{ env.CONTAINER_APP }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image_tag }} \
+            --set-env-vars \
+              OTEL_SERVICE_NAME=ai-devops-agents-api \
+              AZURE_KEYVAULT_URL=${{ secrets.AZURE_KEYVAULT_URL }}
+
+      - name: Verify deployment
+        run: |
+          APP_URL=$(az containerapp show \
+            --name ${{ env.CONTAINER_APP }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          
+          echo "Checking health at https://${APP_URL}/health"
+          for i in {1..10}; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${APP_URL}/health")
+            if [ "$STATUS" == "200" ]; then
+              echo "Health check passed (attempt $i)."
+              exit 0
+            fi
+            echo "Attempt $i: status=$STATUS — retrying in 15s..."
+            sleep 15
+          done
+          echo "Health check failed after 10 attempts."
+          exit 1
+
+  # ------------------------------------------------------------------ #
+  # Deploy Service Bus Consumer
+  # ------------------------------------------------------------------ #
+  deploy-consumer:
+    name: Deploy Consumer
+    runs-on: ubuntu-latest
+    needs: [build, integration-test]
+    timeout-minutes: 15
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+
+    steps:
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy Consumer Container App
+        run: |
+          az containerapp update \
+            --name ${{ env.CONSUMER_APP }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image_tag }} \
+            --set-env-vars \
+              OTEL_SERVICE_NAME=ai-devops-agents-consumer \
+              AZURE_KEYVAULT_URL=${{ secrets.AZURE_KEYVAULT_URL }}
