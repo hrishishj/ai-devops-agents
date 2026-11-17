@@ -72,3 +72,4 @@ infra/terraform/*.tfstate*
 infra/terraform/envs/*.backend.hcl
 infra/terraform/terraform.tfvars
 .ruff_cache/
+backups/

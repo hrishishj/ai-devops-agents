@@ -66,7 +66,7 @@ Incident response without Azure (Alertmanager + Prometheus + GitHub Actions runb
 [docs/free-incidents.md](docs/free-incidents.md).
 
 Prefer an always-on local stack (Ollama + PostgreSQL + API + worker)? `docker compose up -d --build` - see
-[docs/local-docker.md](docs/local-docker.md).
+[docs/local-docker.md](docs/local-docker.md). Back up its database with `make backup` ([docs/backup-restore.md](docs/backup-restore.md)).
 
 Or enable `.github/workflows/ai-review.yml` by setting the `AI_LLM_BASE_URL` repository variable (details and model choices in
 [docs/free-setup.md](docs/free-setup.md)). Nothing is posted to a PR until the repo opts in with `review: {mode: comment}`.
