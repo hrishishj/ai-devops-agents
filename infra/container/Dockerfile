@@ -20,12 +20,11 @@ RUN python -m venv /opt/semgrep \
     && groupadd -r agents && useradd -r -g agents -d /app agents
 WORKDIR /app
 COPY --from=build /install /usr/local
-# The runtime never builds packages, so setuptools/pkg_resources/wheel are dead weight and have had
-# HIGH CVEs (e.g. CVE-2025-47273). Remove every copy wherever it lives; log what is removed.
-RUN find / -xdev \( -name 'setuptools' -o -name 'setuptools-*' -o -name 'pkg_resources' \
-        -o -name 'wheel' -o -name 'wheel-*' -o -name '_distutils_hack' \) \
-        -path '*-packages/*' -prune -print -exec rm -rf {} + \
-    || true
+# The runtime never installs packages, so remove pip from both interpreters. Besides shrinking the
+# attack surface, this drops pip's bundled bom.cdx.json, which lists its vendored setuptools 70.3.0
+# and makes scanners report CVE-2025-47273 even though setuptools is not installed.
+RUN /opt/semgrep/bin/pip uninstall -y pip \
+    && pip uninstall -y pip
 # Runtime data the service reads: prompts, runbook registry, policy (reviewed like code).
 COPY prompts ./prompts
 COPY runbooks ./runbooks
