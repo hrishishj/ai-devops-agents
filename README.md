@@ -65,6 +65,8 @@ devopsagents run-pr --repo owner/name --pr 42      # shadow mode: prints what it
 Incident response without Azure (Alertmanager + Prometheus + GitHub Actions runbooks + GitHub-verified approvals):
 [docs/free-incidents.md](docs/free-incidents.md).
 
+Monitoring (metrics endpoint, self-alerts, Grafana dashboard, all free): [docs/observability.md](docs/observability.md).
+
 Prefer an always-on local stack (Ollama + PostgreSQL + API + worker)? `docker compose up -d --build` - see
 [docs/local-docker.md](docs/local-docker.md).
 

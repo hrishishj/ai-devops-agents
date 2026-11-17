@@ -65,7 +65,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Validate compose file
-        run: docker compose config -q && SMEE_URL=https://smee.io/x docker compose --profile webhooks config -q
+        run: docker compose config -q && SMEE_URL=https://smee.io/x docker compose --profile webhooks --profile observability config -q
       - name: Scan image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:

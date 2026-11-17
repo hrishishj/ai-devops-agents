@@ -1,0 +1,35 @@
+# Alerts about the agents themselves. They carry environment=local, which no runbook allows, so the
+# incident agent can only open a ticket for them, never run an action.
+groups:
+  - name: devopsagents
+    rules:
+      - alert: AgentsApiDown
+        expr: up{job="devopsagents"} == 0
+        for: 2m
+        labels: { severity: critical, environment: local }
+        annotations:
+          summary: The AI agents API is not reachable (or /metrics is disabled)
+          description: Check DA_METRICS_TOKEN is set and the api container is healthy.
+
+      - alert: NewDeadJobs
+        expr: sum(devopsagents_jobs{status="dead"}) - sum(devopsagents_jobs{status="dead"} offset 1h) > 0
+        labels: { severity: warning, environment: local }
+        annotations:
+          summary: Jobs exhausted their retries in the last hour
+          description: Inspect them with GET /admin/jobs/<id>; usually a model or GitHub outage, or a rate limit.
+
+      - alert: JobsStuckInQueue
+        expr: max(devopsagents_oldest_queued_job_age_seconds) > 900
+        for: 5m
+        labels: { severity: warning, environment: local }
+        annotations:
+          summary: A job has been waiting more than 15 minutes
+          description: The worker may be down, overloaded, or blocked on a slow model.
+
+      - alert: KillSwitchEnabled
+        expr: devopsagents_kill_switch == 1
+        for: 1m
+        labels: { severity: warning, environment: local }
+        annotations:
+          summary: The global kill switch is on, so the agents are doing nothing
+          description: Set DA_KILL_SWITCH=false and restart to resume.

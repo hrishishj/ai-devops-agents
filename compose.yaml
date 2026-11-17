@@ -33,6 +33,7 @@ x-app: &app
     DA_GITHUB_WEBHOOK_SECRET: ${DA_GITHUB_WEBHOOK_SECRET:-}
     DA_ALERT_TOKEN: ${DA_ALERT_TOKEN:-}
     DA_ADMIN_TOKEN: ${DA_ADMIN_TOKEN:-}
+    DA_METRICS_TOKEN: ${DA_METRICS_TOKEN:-} # /metrics is disabled until this is set
     DA_KILL_SWITCH: ${DA_KILL_SWITCH:-false}
     # Free incident path (docs/free-incidents.md); all optional.
     DA_PROMETHEUS_URL: ${DA_PROMETHEUS_URL:-}
@@ -136,6 +137,66 @@ services:
       SMEE_URL: ${SMEE_URL:-}
     depends_on: [api]
 
+  # ---- Optional observability (free): docker compose --profile observability up -d ----------------------
+  # Prometheus scrapes the agents' /metrics, evaluates alerts about the agents themselves, and Alertmanager
+  # forwards them to the agents' webhook. Grafana ships with one dashboard. All bound to 127.0.0.1.
+  # Needs DA_METRICS_TOKEN (and DA_ALERT_TOKEN for alert delivery) in .env. Set DA_PROMETHEUS_URL=http://prometheus:9090
+  # to let the incident agent read evidence and verify recovery from this Prometheus.
+  prometheus:
+    profiles: ["observability"]
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        printf %s "$$DA_METRICS_TOKEN" > /tmp/metrics_token &&
+        exec /bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus
+        --storage.tsdb.retention.time=15d
+    environment:
+      DA_METRICS_TOKEN: ${DA_METRICS_TOKEN:-}
+    volumes:
+      - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus:/prometheus
+    ports: ["127.0.0.1:9090:9090"]
+    depends_on: [api]
+
+  alertmanager:
+    profiles: ["observability"]
+    image: prom/alertmanager:v0.27.0
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        printf %s "$$DA_ALERT_TOKEN" > /tmp/alert_token &&
+        exec /bin/alertmanager --config.file=/etc/alertmanager/alertmanager.yml --storage.path=/alertmanager
+    environment:
+      DA_ALERT_TOKEN: ${DA_ALERT_TOKEN:-}
+    volumes:
+      - ./infra/observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager:/alertmanager
+    ports: ["127.0.0.1:9093:9093"]
+    depends_on: [api]
+
+  grafana:
+    profiles: ["observability"]
+    image: grafana/grafana-oss:11.3.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin} # change it; reachable from this machine only
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana:/var/lib/grafana
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on: [prometheus]
+
 volumes:
   ollama:
   pgdata:
+  prometheus:
+  alertmanager:
+  grafana:
