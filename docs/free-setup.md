@@ -75,3 +75,13 @@ your own repositories and ephemeral runners, not for code from strangers (see AD
 - Free hosted tiers rate-limit; the client honours `Retry-After` and gives up after a few attempts, then the job is
   reported as failed in the summary (the workflow stays green unless you pass `--strict`).
 - This repo's Azure code and Terraform are optional and unused in free mode.
+
+## How the review learns from you
+Every comment the agent posts carries a hidden fingerprint of the finding (rule, file and quoted code, so it survives line shifts).
+On the next run it reads the PR's review threads and:
+- **does not repeat** a finding whose thread is still open;
+- **stops raising** a finding you resolved (a human resolving the thread) or reacted to with 👎, on this PR and, where the database
+  persists (Compose / server mode), on other PRs in the same repo for 90 days;
+- **resolves outdated threads** (code changed since the comment) after the new review is posted.
+In shadow mode nothing on the PR changes; the summary shows how many threads it *would* resolve. Needs `pull-requests: write`
+(already set in `ai-review.yml`); if the token cannot read threads, the review still runs without feedback.

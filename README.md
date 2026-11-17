@@ -134,7 +134,10 @@ Automation runbook it names, run `devopsagents check-config`, and list it in `pr
   `DA_CREATE_SCHEMA=false`. Locally the schema is auto-created.
 - **Azure deployment is optional** (`optional/azure/`). Its Terraform passes `fmt`/`validate` but has never been planned or applied against a
   real subscription; private networking and queue-driven autoscaling are not covered.
-- Review thread resolution on new pushes and feedback-driven suppression (👎 → fingerprint) are designed but not implemented.
+- Review feedback loop: comments carry a hidden fingerprint marker; threads a human resolves (or reacts to with a thumbs-down) are
+  suppressed (per PR from GitHub, and across PRs from the database, 90 days), open duplicates are not re-posted, and outdated threads are
+  resolved after a new review posts. Not run against real GitHub yet; the GraphQL queries are contract-tested with mocks only, and
+  only the first 100 threads of a PR are read.
 - Live Azure OpenAI / GitHub / Azure Automation adapters are tested with fakes and mock transports only; run the live evals
   and a staging smoke test before trusting them.
 
