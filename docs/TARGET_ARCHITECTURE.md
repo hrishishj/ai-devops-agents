@@ -13,7 +13,8 @@ Status: **partially implemented** (see below) · Scope: clean-slate design; the 
 | Phase 5–6 incident agent (evidence port, policy engine, runbook registry, approvals, audit) | built; recovery verifier, expiring approvals, two-person rule and opt-in rollback built |
 | Phase 7 hardening (private networking, Entra approvers, Alembic, load/DR tests) | not started |
 
-Deviations from this document: queues do not use Service Bus sessions ([ADR-0003](adr/0003-db-lease-not-sessions.md));
+Azure is now an **optional** deployment target (`optional/azure/`); the default path is free (GitHub Actions or Docker Compose,
+see `docs/free-setup.md`). Deviations from this document: queues do not use Service Bus sessions ([ADR-0003](adr/0003-db-lease-not-sessions.md));
 the policy engine is embedded Python with rules-as-data in `policies/` (open decision #2 resolved: embedded first).
 
 

@@ -1,4 +1,4 @@
-.PHONY: sandbox-image dev test lint types arch check eval image tf-validate up down logs compose-check
+.PHONY: backup restore sandbox-image dev test lint types arch check eval image tf-validate up down logs compose-check
 
 dev:
 	uv venv --python 3.12 && uv pip install -e ".[dev]"
@@ -26,7 +26,7 @@ image:
 	docker build -f infra/container/Dockerfile -t devopsagents:dev .
 
 tf-validate:
-	terraform -chdir=infra/terraform init -backend=false && terraform -chdir=infra/terraform validate
+	terraform -chdir=optional/azure/terraform init -backend=false && terraform -chdir=optional/azure/terraform validate
 
 up:
 	docker compose up -d --build
@@ -42,3 +42,10 @@ compose-check:
 
 sandbox-image:
 	docker build -t devopsagents-sandbox infra/sandbox
+
+backup:
+	scripts/backup.sh
+
+restore:
+	@test -n "$(FILE)" || { echo "usage: make restore FILE=backups/<file>.dump"; exit 2; }
+	scripts/restore.sh "$(FILE)"

@@ -26,6 +26,7 @@ jobs:
         run: |
           .venv/bin/ruff check src tests evals
           .venv/bin/ruff format --check src tests evals
+          .venv/bin/shellcheck scripts/*.sh
       - name: Types (strict)
         run: .venv/bin/mypy -p devopsagents
       - name: Architecture layering
@@ -40,6 +41,7 @@ jobs:
         run: .venv/bin/python -m evals.run_evals --offline
 
   terraform:
+    # Optional Azure path (optional/azure): kept valid, but nothing else depends on it.
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -47,9 +49,9 @@ jobs:
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
           terraform_version: 1.9.8
-      - run: terraform -chdir=infra/terraform fmt -check -recursive
-      - run: terraform -chdir=infra/terraform init -backend=false
-      - run: terraform -chdir=infra/terraform validate
+      - run: terraform -chdir=optional/azure/terraform fmt -check -recursive
+      - run: terraform -chdir=optional/azure/terraform init -backend=false
+      - run: terraform -chdir=optional/azure/terraform validate
 
   image:
     runs-on: ubuntu-latest

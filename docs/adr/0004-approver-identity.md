@@ -14,7 +14,7 @@ identities. Optionally require a second approver for tier-2 runbooks in prod.
 ## Implementation notes
 - `easyauth` mode reads the validated principal from `X-MS-CLIENT-PRINCIPAL(-NAME)`, requires the `Incident.Approver` app role, and ignores any body-supplied approver. Audit entries record `verified_identity: true`.
 - **Deployment requirement:** these headers are only trustworthy if the app is reachable exclusively through Easy Auth / APIM. Exclude `/webhooks/*` and `/health*` from Entra auth (GitHub and Azure Monitor use their own HMAC/token); protect `/admin/*`.
-- `token` mode remains for dev/pilot and is the Terraform default until Easy Auth is configured.
+- `token` mode remains for dev/pilot and is the default until Easy Auth (or GitHub mode) is configured.
 - **Two-person rule and expiry (implemented):** actions at or above `two_person_min_tier` in `two_person_environments` (default tier 2 in prod)
   need two distinct *verified* approvers; self-declared names cannot satisfy it. Votes are recorded as `approval.vote` audit events.
   Pending approvals expire after `approval_ttl_minutes` (default 120): the endpoint returns 410 and the agent re-checks at execution time.
