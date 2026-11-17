@@ -65,6 +65,11 @@ class Settings(BaseSettings):
     alert_token: SecretStr = SecretStr("")
 
     # Verified test generation (isolated sandbox; empty = feature unavailable)
+    # auto = azure_sessions if sandbox_endpoint is set, else none. "docker" = a locked-down local container.
+    sandbox_kind: Literal["auto", "docker", "azure_sessions", "none"] = "auto"
+    sandbox_image: str = (
+        "devopsagents-sandbox"  # docker: build with `docker build -t devopsagents-sandbox infra/sandbox`
+    )
     sandbox_endpoint: str = ""  # Azure Container Apps session pool management endpoint
     sandbox_session_id: str = "devopsagents"
 

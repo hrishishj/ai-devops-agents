@@ -11,6 +11,9 @@ updates:
   - package-ecosystem: docker
     directory: /infra/container
     schedule: { interval: weekly }
+  - package-ecosystem: docker
+    directory: /infra/sandbox
+    schedule: { interval: weekly }
   - package-ecosystem: terraform
     directory: /infra/terraform
     schedule: { interval: weekly }

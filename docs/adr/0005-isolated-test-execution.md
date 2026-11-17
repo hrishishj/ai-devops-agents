@@ -16,3 +16,14 @@ skipped; there is deliberately no local-execution fallback, and no local runner 
 version of one file), so code that imports other repo modules will fail verification and be dropped. A session pool whose
 image contains pytest must be provisioned separately; real coverage measurement would require uploading the repo and is
 future work.
+
+## Addendum: free Docker adapter
+`DockerSandbox` (`DA_SANDBOX_KIND=docker`) runs each job in a throw-away container: no network, read-only root with a small
+tmpfs, all capabilities dropped, no-new-privileges, non-root user, memory/CPU/PID limits, killed on timeout. **No host mounts and no
+Docker socket**: the files go in over stdin and the result comes back on stdout. A test-only suite (`tests/integration/
+test_docker_sandbox.py`) runs real containers to prove these properties, and CI builds the image so it runs there.
+
+This is container-grade isolation, not VM-grade. Use it for your own repositories and for ephemeral CI runners (the GitHub Actions
+workflow). Do not use it for code from strangers, and do not mount the Docker socket into a long-lived service container (for
+example the Compose worker) to give it access: that is effectively host root. Run the agents on the host or an ephemeral runner.
+

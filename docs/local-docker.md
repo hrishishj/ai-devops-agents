@@ -55,5 +55,6 @@ docker compose up -d --build   # apply code changes (migrations run automaticall
 - Not run end to end in the environment where this was written (no Docker daemon was available): the compose file is validated
   (`docker compose config`) and its pieces are tested, but the first `up` on your machine is the real test. Report what breaks.
 - The Alembic migration has only been tested on SQLite; this is its first run against PostgreSQL.
-- Verified test generation needs an isolated sandbox and is not part of this stack.
+- Verified test generation is not part of this stack: the Docker sandbox needs `docker` access, and mounting the Docker socket into
+  the worker would be effectively host root. Run `devopsagents run-pr` on the host (with `DA_SANDBOX_KIND=docker`) or use the GitHub Actions workflow.
 - For production use behind a public address, put a reverse proxy with TLS in front of the API.

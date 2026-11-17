@@ -30,6 +30,7 @@ from devopsagents.integrations.prometheus.client import (
     PrometheusEvidence,
     PrometheusVerifier,
 )
+from devopsagents.integrations.sandbox.base import Sandbox
 from devopsagents.integrations.scanners.base import SecretsScanner, SemgrepScanner
 
 log = logging.getLogger(__name__)
@@ -82,6 +83,22 @@ class Container:
     handlers: dict[AgentKind, Handler]
     github: GitHubClient | None
     registry: RunbookRegistry
+
+
+def _build_sandbox(settings: Settings) -> Sandbox | None:
+    """Pick an isolated sandbox for verified test generation. Never a local, unisolated runner."""
+    kind = settings.sandbox_kind
+    if kind == "auto":
+        kind = "azure_sessions" if settings.sandbox_endpoint else "none"
+    if kind == "docker":
+        from devopsagents.integrations.sandbox.docker import DockerSandbox
+
+        return DockerSandbox(settings.sandbox_image)
+    if kind == "azure_sessions" and settings.sandbox_endpoint:
+        from devopsagents.integrations.sandbox.azure_sessions import AzureSessionsSandbox
+
+        return AzureSessionsSandbox(settings.sandbox_endpoint, settings.sandbox_session_id)
+    return None
 
 
 def queue_for(settings: Settings, agent: AgentKind) -> str:
@@ -167,15 +184,8 @@ def build_container(
             chunk_tokens=settings.review_chunk_tokens,
             kill_switch=settings.kill_switch,
         ).handle
-        testgen: TestGenerator | None = None
-        if settings.sandbox_endpoint:
-            from devopsagents.integrations.sandbox.azure_sessions import AzureSessionsSandbox
-
-            testgen = TestGenerator(
-                gateway,
-                prompts,
-                AzureSessionsSandbox(settings.sandbox_endpoint, settings.sandbox_session_id),
-            )
+        sandbox = _build_sandbox(settings)
+        testgen = TestGenerator(gateway, prompts, sandbox) if sandbox is not None else None
         handlers[AgentKind.SECURITY] = SecurityAgent(
             github,
             gateway,
