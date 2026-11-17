@@ -48,6 +48,12 @@ devopsagents = "devopsagents.apps.cli.main:main"
 [tool.hatch.build.targets.wheel]
 packages = ["src/devopsagents"]
 
+# Ship prompts, runbooks and policies inside the wheel so `pip install` works without a checkout.
+[tool.hatch.build.targets.wheel.force-include]
+"prompts" = "devopsagents/_data/prompts"
+"runbooks" = "devopsagents/_data/runbooks"
+"policies" = "devopsagents/_data/policies"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"

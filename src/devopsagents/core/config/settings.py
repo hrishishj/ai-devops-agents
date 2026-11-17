@@ -29,9 +29,19 @@ class Settings(BaseSettings):
     github_app_id: str = ""
     github_app_private_key: SecretStr = SecretStr("")
     github_webhook_secret: SecretStr = SecretStr("")
+    # Plain token (e.g. the Actions GITHUB_TOKEN or a PAT). Used when no GitHub App is configured.
+    github_token: SecretStr = SecretStr("")
     github_api_url: str = "https://api.github.com"
 
-    # Azure OpenAI (Entra auth; no API key)
+    # LLM provider. Default is any OpenAI-compatible endpoint (Ollama, GitHub Models, Groq, Gemini...).
+    llm_provider: Literal["openai_compat", "azure"] = "openai_compat"
+    llm_base_url: str = "http://localhost:11434/v1"  # Ollama
+    llm_api_key: SecretStr = SecretStr("")
+    llm_model_large: str = "qwen2.5-coder:7b"
+    llm_model_small: str = "qwen2.5-coder:7b"
+    llm_json_mode: bool = True  # send response_format=json_object (disable if the model rejects it)
+
+    # Azure OpenAI (optional; Entra auth, no API key)
     openai_endpoint: str = ""
     openai_api_version: str = "2024-10-21"
     model_large: str = "gpt-4o"

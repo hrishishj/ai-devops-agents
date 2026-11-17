@@ -1,0 +1,49 @@
+name: AI review
+
+# Runs the review + security agents on every pull request, entirely inside GitHub Actions:
+# no server, no database, no GitHub App, no paid service. Opt-in: it is skipped until the
+# repository variable AI_LLM_BASE_URL is set (see docs/free-setup.md).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write # post the review
+  checks: write # security Check Run
+  models: read # lets GITHUB_TOKEN call GitHub Models (free tier)
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # Same-repo PRs only: fork PRs get a read-only token and no secrets by design.
+    if: >-
+      ${{ vars.AI_LLM_BASE_URL != ''
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # No actions/checkout: the agents read the diff and files through the GitHub API, so code from
+      # the pull request is never checked out or executed on this runner.
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+      - name: Install the agents
+        env:
+          AGENTS_SPEC: ${{ vars.AI_AGENTS_SPEC || 'git+https://github.com/hrishishj/ai-devops-agents@main' }}
+        run: uv venv --python 3.12 && uv pip install "$AGENTS_SPEC"
+      - name: Review pull request
+        env:
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          DA_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DA_LLM_BASE_URL: ${{ vars.AI_LLM_BASE_URL }}
+          DA_LLM_API_KEY: ${{ secrets.AI_LLM_API_KEY || secrets.GITHUB_TOKEN }}
+          DA_LLM_MODEL_LARGE: ${{ vars.AI_LLM_MODEL_LARGE }}
+          DA_LLM_MODEL_SMALL: ${{ vars.AI_LLM_MODEL_SMALL || vars.AI_LLM_MODEL_LARGE }}
+          DA_LLM_JSON_MODE: ${{ vars.AI_LLM_JSON_MODE || 'true' }}
+          DA_REVIEW_CHUNK_TOKENS: ${{ vars.AI_CHUNK_TOKENS || '4000' }}
+        run: .venv/bin/devopsagents run-pr --repo "$REPO" --pr "$PR_NUMBER"

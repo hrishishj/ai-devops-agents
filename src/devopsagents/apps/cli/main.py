@@ -9,15 +9,16 @@ from pathlib import Path
 
 def _check_config(base: Path) -> int:
     """Validate runbooks, policy and prompts — run in CI so bad config never ships."""
+    from devopsagents.core.config.paths import resolve_data
     from devopsagents.core.config.settings import Settings
     from devopsagents.core.policy.engine import PolicyConfig
     from devopsagents.core.policy.runbooks import RunbookRegistry
     from devopsagents.core.prompts.registry import PromptRegistry
 
     s = Settings()
-    reg = RunbookRegistry.load(base / s.runbooks_dir)
-    PolicyConfig.load(base / s.policy_file)
-    prompts = PromptRegistry(base / s.prompts_dir)
+    reg = RunbookRegistry.load(resolve_data(base, s.runbooks_dir))
+    PolicyConfig.load(resolve_data(base, s.policy_file))
+    prompts = PromptRegistry(resolve_data(base, s.prompts_dir))
     required = (
         ("review", "discover"),
         ("security", "triage"),
@@ -30,10 +31,37 @@ def _check_config(base: Path) -> int:
     return 0
 
 
+def _run_pr(repo: str, number: int, strict: bool) -> int:
+    import os
+
+    from devopsagents.apps.cli.run_pr import render_summary, run_pr
+    from devopsagents.apps.container import build_container
+    from devopsagents.core.config.settings import Settings
+    from devopsagents.core.telemetry.tracing import configure_logging
+
+    configure_logging()
+    # Ephemeral by default: Actions mode needs no persistent database.
+    settings = Settings(database_url=os.environ.get("DA_DATABASE_URL", "sqlite+pysqlite://"))
+    c = build_container(settings, base_dir=Path.cwd())
+    runs = run_pr(c, repo, number)
+    summary = render_summary(repo, number, runs)
+    print(summary)
+    target = os.environ.get("GITHUB_STEP_SUMMARY")
+    if target:
+        with open(target, "a", encoding="utf-8") as fh:
+            fh.write(summary + "\n")
+    failed = [r for r in runs if r.outcome in ("dead", "retry")]
+    return 1 if (strict and failed) else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="devopsagents")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("check-config", help="validate runbooks, policy and prompts")
+    rp = sub.add_parser("run-pr", help="run review+security once for a PR (GitHub Actions mode)")
+    rp.add_argument("--repo", required=True)
+    rp.add_argument("--pr", type=int, required=True)
+    rp.add_argument("--strict", action="store_true", help="exit 1 if an agent fails")
     sub.add_parser("migrate", help="apply database migrations (alembic upgrade head)")
     sub.add_parser("serve", help="run the ingress API").add_argument("--port", type=int, default=8000)
     w = sub.add_parser("worker", help="run a worker")
@@ -46,6 +74,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "check-config":
         return _check_config(Path.cwd())
+    if args.cmd == "run-pr":
+        return _run_pr(args.repo, args.pr, args.strict)
     if args.cmd == "migrate":  # pragma: no cover
         from devopsagents.core.config.settings import Settings
         from devopsagents.core.jobs.migrate import upgrade

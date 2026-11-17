@@ -1,7 +1,10 @@
 # AI DevOps Agents
 
-Policy-gated AI agents for **pull-request review**, **security triage** and **IT incident response**,
-running on Azure (Container Apps, PostgreSQL, Service Bus, Azure OpenAI) and driven by a GitHub App.
+Policy-gated AI agents for **pull-request review**, **security triage** and **IT incident response**.
+
+**Free by default:** runs inside GitHub Actions or on your own machine with a free LLM (Ollama, GitHub Models, Groq, Gemini)
+and needs no paid service. Azure (Container Apps, PostgreSQL, Service Bus, Azure OpenAI, Terraform) is an optional
+deployment target, not a requirement. Start here: **[docs/free-setup.md](docs/free-setup.md)**.
 
 | Agent | Trigger | What it does | Safety posture |
 |---|---|---|---|
@@ -49,6 +52,18 @@ tests/            unit · contract · integration
 ```
 
 Layering `apps → agents → integrations → core → domain` is enforced in CI by import-linter.
+
+## Free quick start: review a pull request
+
+```bash
+pip install "git+https://github.com/hrishishj/ai-devops-agents@main"
+export DA_GITHUB_TOKEN=<token that can read the PR and comment>
+export DA_LLM_BASE_URL=http://localhost:11434/v1 DA_LLM_MODEL_LARGE=qwen2.5-coder:7b   # Ollama
+devopsagents run-pr --repo owner/name --pr 42      # shadow mode: prints what it would post
+```
+
+Or enable `.github/workflows/ai-review.yml` by setting the `AI_LLM_BASE_URL` repository variable (details and model choices in
+[docs/free-setup.md](docs/free-setup.md)). Nothing is posted to a PR until the repo opts in with `review: {mode: comment}`.
 
 ## Quick start (local, no Azure needed)
 

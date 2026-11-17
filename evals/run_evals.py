@@ -1,7 +1,7 @@
 """Evaluation harness for prompts/models.
 
     python -m evals.run_evals --offline          # CI: validates the harness with recorded replies
-    python -m evals.run_evals                    # live: uses DA_OPENAI_ENDPOINT (Azure OpenAI)
+    python -m evals.run_evals                    # live: the configured provider (DA_LLM_*, Ollama default)
 
 Prompt or model changes must not regress the thresholds below (see docs/slo.md).
 """
@@ -138,10 +138,24 @@ def main(argv: list[str] | None = None) -> int:
         def make_backend(reply: dict[str, object]) -> LLMBackend:
             return ScriptedBackend(responder=lambda s, u: reply)
     else:  # pragma: no cover - live model
-        from devopsagents.integrations.azure.openai_backend import AzureOpenAIBackend
-
         st = Settings()
-        live = AzureOpenAIBackend(st.openai_endpoint, st.openai_api_version, st.model_large, st.model_small)
+        live: LLMBackend
+        if st.llm_provider == "azure":
+            from devopsagents.integrations.azure.openai_backend import AzureOpenAIBackend
+
+            live = AzureOpenAIBackend(
+                st.openai_endpoint, st.openai_api_version, st.model_large, st.model_small
+            )
+        else:  # default: any OpenAI-compatible endpoint (Ollama, GitHub Models, Groq, Gemini...)
+            from devopsagents.integrations.llm.openai_compat import OpenAICompatBackend
+
+            live = OpenAICompatBackend(
+                st.llm_base_url,
+                st.llm_api_key.get_secret_value(),
+                st.llm_model_large,
+                st.llm_model_small,
+                json_mode=st.llm_json_mode,
+            )
 
         def make_backend(reply: dict[str, object]) -> LLMBackend:
             return live
