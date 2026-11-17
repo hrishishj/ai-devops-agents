@@ -37,6 +37,9 @@ class TestsConfig(BaseModel):
     max_functions: int = Field(default=6, ge=1, le=20)
     max_files: int = Field(default=3, ge=1, le=10)
     timeout_seconds: int = Field(default=60, ge=5, le=300)
+    # Drop tests whose average coverage of the target functions is below this percentage (0 = only require
+    # that they execute the target code at all).
+    min_coverage: int = Field(default=0, ge=0, le=100)
 
 
 class SecurityConfig(BaseModel):

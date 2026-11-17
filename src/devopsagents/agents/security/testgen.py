@@ -67,12 +67,46 @@ class VerifiedTests:
     test_names: list[str]
     dropped: int = 0  # generated tests that failed and were removed
     skipped_reason: str = ""
+    coverage: dict[str, float] = field(default_factory=dict)  # target function -> % of its body lines run
+    coverage_measured: bool = False
 
 
 @dataclass
 class TestgenReport:
+    __test__ = False  # not a pytest test class
+
     verified: list[VerifiedTests] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+
+
+def function_coverage(
+    source: str, functions: list[str], info: dict[str, list[int]] | None
+) -> dict[str, float] | None:
+    """Percent of each target function's body statements that the tests executed.
+
+    `info` is the sandbox's {"executed": [...], "missing": [...]} for the source file. The `def` line itself
+    is ignored: it runs at import time even when the function is never called.
+    """
+    if info is None:
+        return None
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return None
+    executed, missing = set(info.get("executed", [])), set(info.get("missing", []))
+    found: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and node.name not in found:
+            found[node.name] = node
+    out: dict[str, float] = {}
+    for name in functions:
+        fn = found.get(name)
+        if fn is None:
+            continue
+        body = set(range(fn.lineno + 1, (fn.end_lineno or fn.lineno) + 1))
+        statements = (executed | missing) & body
+        out[name] = 100.0 * len(executed & body) / len(statements) if statements else 100.0
+    return out
 
 
 def import_path(path: str) -> str:
@@ -172,7 +206,9 @@ class TestGenerator:
     ) -> None:
         self._llm, self._prompts, self._sandbox, self._timeout = gateway, prompts, sandbox, timeout
 
-    def run(self, targets: list[Target], scope: str, timeout: int | None = None) -> TestgenReport:
+    def run(
+        self, targets: list[Target], scope: str, timeout: int | None = None, min_coverage: int = 0
+    ) -> TestgenReport:
         report = TestgenReport()
         prompt = self._prompts.get("security", "testgen")
         for t in targets:
@@ -191,7 +227,7 @@ class TestGenerator:
                     prompt_id=prompt.id,
                     max_tokens=2500,
                 )
-                result = self._verify(t, out.code, timeout or self._timeout)
+                result = self._verify(t, out.code, timeout or self._timeout, min_coverage)
             except SandboxUnavailable as exc:
                 report.notes.append(f"sandbox unavailable ({exc}); skipped test generation")
                 return report
@@ -201,7 +237,7 @@ class TestGenerator:
                 report.notes.append(f"{t.path}: {result.skipped_reason}")
         return report
 
-    def _verify(self, t: Target, code: str, timeout: int) -> VerifiedTests:
+    def _verify(self, t: Target, code: str, timeout: int, min_coverage: int = 0) -> VerifiedTests:
         def none(reason: str) -> VerifiedTests:
             return VerifiedTests(t.path, "", [], skipped_reason=reason)
 
@@ -212,23 +248,36 @@ class TestGenerator:
             return none("no usable test functions generated")
         header, tests = parts
 
-        def execute(names: list[str]) -> dict[str, str]:
+        def execute(names: list[str]) -> tuple[dict[str, str], dict[str, list[int]] | None]:
             files = {t.path: t.source, "conftest.py": _CONFTEST, TEST_FILE: _assemble(header, tests, names)}
-            res = self._sandbox.run_pytest(files, TEST_FILE, timeout)
+            res = self._sandbox.run_pytest(files, TEST_FILE, timeout, cover=[t.path])
             if res.timed_out:
-                return {}
-            return parse_pytest_outcomes(res.stdout)
+                return {}, None
+            return parse_pytest_outcomes(res.stdout), (res.coverage or {}).get(t.path)
 
-        first = execute(list(tests))
+        first, cov = execute(list(tests))
         passed = [n for n in tests if first.get(n) == "PASSED"]
         if not passed:
             return none("none of the generated tests passed in the sandbox")
         if len(passed) < len(tests):
             # confirm the surviving subset passes on its own (shared state/order effects)
-            second = execute(passed)
+            second, cov = execute(passed)
             passed = [n for n in passed if second.get(n) == "PASSED"]
             if not passed:
                 return none("tests were not stable when re-run")
+
+        per_function = function_coverage(t.source, t.functions, cov)
+        if per_function is not None:
+            if per_function and max(per_function.values()) == 0:
+                return none("the tests pass but never execute the target functions")
+            mean = sum(per_function.values()) / len(per_function) if per_function else 100.0
+            if mean < min_coverage:
+                return none(f"tests cover {mean:.0f}% of the target functions (minimum {min_coverage}%)")
         return VerifiedTests(
-            t.path, _assemble(header, tests, passed), passed, dropped=len(tests) - len(passed)
+            t.path,
+            _assemble(header, tests, passed),
+            passed,
+            dropped=len(tests) - len(passed),
+            coverage=per_function or {},
+            coverage_measured=per_function is not None,
         )
