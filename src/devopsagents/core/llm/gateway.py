@@ -26,6 +26,9 @@ log = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
 
+_MAX_RETRY_AFTER = 90.0  # seconds
+
+
 class ModelTier(StrEnum):
     SMALL = "small"  # classification, short summaries
     LARGE = "large"  # reasoning over code / incidents
@@ -52,7 +55,14 @@ class LLMBackend(Protocol):
 
 
 class TransientLLMError(Exception):
-    """Rate limits / 5xx — the gateway retries these with backoff."""
+    """Rate limits / 5xx — the gateway retries these with backoff.
+
+    `retry_after` (seconds) carries the server's Retry-After hint; free tiers rate-limit per minute.
+    """
+
+    def __init__(self, message: str = "", retry_after: float | None = None) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
 
 
 class BudgetExceeded(Exception):
@@ -183,7 +193,10 @@ class LLMGateway:
             except TransientLLMError as exc:
                 last = exc
                 if attempt < self._retries:
-                    self._sleep(self._backoff * (2**attempt))
+                    wait = self._backoff * (2**attempt)
+                    if exc.retry_after:  # honour the server hint, but never wait unboundedly
+                        wait = max(wait, min(exc.retry_after, _MAX_RETRY_AFTER))
+                    self._sleep(wait)
         raise TransientLLMError(f"LLM unavailable after {self._retries + 1} attempts") from last
 
     def _check_budget(self, scope: str) -> None:
