@@ -142,6 +142,27 @@ class GitHubClient:
         )
         return str(r.json().get("html_url", ""))
 
+    def dispatch_workflow(
+        self, inst: int, repo: str, workflow: str, ref: str, inputs: dict[str, str]
+    ) -> None:
+        """workflow_dispatch; needs `actions: write` on the token."""
+        self._req(
+            inst,
+            "POST",
+            f"/repos/{repo}/actions/workflows/{workflow}/dispatches",
+            json={"ref": ref, "inputs": inputs},
+        )
+
+    def list_workflow_runs(self, inst: int, repo: str, workflow: str) -> list[dict[str, Any]]:
+        r = self._req(
+            inst,
+            "GET",
+            f"/repos/{repo}/actions/workflows/{workflow}/runs",
+            params={"event": "workflow_dispatch", "per_page": 30},
+        )
+        runs: list[dict[str, Any]] = r.json().get("workflow_runs", [])
+        return runs
+
     def create_check_run(
         self,
         inst: int,
