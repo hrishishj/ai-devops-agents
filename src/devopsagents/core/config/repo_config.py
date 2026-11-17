@@ -30,6 +30,15 @@ class ReviewConfig(BaseModel):
     min_confidence: float = Field(default=0.6, ge=0, le=1)
 
 
+class TestsConfig(BaseModel):
+    __test__ = False
+
+    enabled: bool = False  # opt-in: needs a sandbox and spends LLM budget
+    max_functions: int = Field(default=6, ge=1, le=20)
+    max_files: int = Field(default=3, ge=1, le=10)
+    timeout_seconds: int = Field(default=60, ge=5, le=300)
+
+
 class SecurityConfig(BaseModel):
     enabled: bool = True
     fail_on: list[Literal["critical", "high", "medium", "low"]] = ["critical"]
@@ -41,6 +50,7 @@ class RepoConfig(BaseModel):
     version: Literal[1] = 1
     review: ReviewConfig = Field(default_factory=ReviewConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
+    tests: TestsConfig = Field(default_factory=TestsConfig)
 
 
 def parse_repo_config(text: str | None) -> RepoConfig:

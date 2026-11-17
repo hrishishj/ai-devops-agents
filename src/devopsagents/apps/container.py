@@ -8,6 +8,7 @@ from pathlib import Path
 
 from devopsagents.agents.incident.workflow import IncidentAgent
 from devopsagents.agents.review.workflow import ReviewAgent
+from devopsagents.agents.security.testgen import TestGenerator
 from devopsagents.agents.security.workflow import SecurityAgent
 from devopsagents.core.config.settings import Settings
 from devopsagents.core.jobs.queue import InMemoryQueue, JobQueue
@@ -148,6 +149,15 @@ def build_container(
             chunk_tokens=settings.review_chunk_tokens,
             kill_switch=settings.kill_switch,
         ).handle
+        testgen: TestGenerator | None = None
+        if settings.sandbox_endpoint:
+            from devopsagents.integrations.sandbox.azure_sessions import AzureSessionsSandbox
+
+            testgen = TestGenerator(
+                gateway,
+                prompts,
+                AzureSessionsSandbox(settings.sandbox_endpoint, settings.sandbox_session_id),
+            )
         handlers[AgentKind.SECURITY] = SecurityAgent(
             github,
             gateway,
@@ -155,6 +165,7 @@ def build_container(
             store,
             [SecretsScanner(), SemgrepScanner()],
             kill_switch=settings.kill_switch,
+            testgen=testgen,
         ).handle
 
     notifier = (
