@@ -12,7 +12,6 @@ permissions:
   contents: read
   pull-requests: write # post the review
   checks: write # security Check Run
-  models: read # lets GITHUB_TOKEN call GitHub Models (free tier)
 
 concurrency:
   group: ai-review-${{ github.event.pull_request.number }}
@@ -54,7 +53,9 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           DA_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DA_LLM_BASE_URL: ${{ vars.AI_LLM_BASE_URL }}
-          DA_LLM_API_KEY: ${{ secrets.AI_LLM_API_KEY || secrets.GITHUB_TOKEN }}
+          # Only the provider key. Never fall back to GITHUB_TOKEN: it would be sent to whichever provider
+          # AI_LLM_BASE_URL points at (GitHub Models, which accepted it, was retired on 2026-07-30).
+          DA_LLM_API_KEY: ${{ secrets.AI_LLM_API_KEY }}
           DA_LLM_MODEL_LARGE: ${{ vars.AI_LLM_MODEL_LARGE }}
           DA_LLM_MODEL_SMALL: ${{ vars.AI_LLM_MODEL_SMALL || vars.AI_LLM_MODEL_LARGE }}
           DA_LLM_JSON_MODE: ${{ vars.AI_LLM_JSON_MODE || 'true' }}
