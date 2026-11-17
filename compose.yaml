@@ -34,6 +34,16 @@ x-app: &app
     DA_ALERT_TOKEN: ${DA_ALERT_TOKEN:-}
     DA_ADMIN_TOKEN: ${DA_ADMIN_TOKEN:-}
     DA_KILL_SWITCH: ${DA_KILL_SWITCH:-false}
+    # Free incident path (docs/free-incidents.md); all optional.
+    DA_PROMETHEUS_URL: ${DA_PROMETHEUS_URL:-}
+    DA_PROMETHEUS_TOKEN: ${DA_PROMETHEUS_TOKEN:-}
+    DA_RUNBOOK_REPO: ${DA_RUNBOOK_REPO:-}
+    DA_RUNBOOK_WORKFLOW: ${DA_RUNBOOK_WORKFLOW:-runbook.yml}
+    DA_RUNBOOK_REF: ${DA_RUNBOOK_REF:-main}
+    DA_INCIDENT_REPO: ${DA_INCIDENT_REPO:-}
+    DA_ADMIN_AUTH: ${DA_ADMIN_AUTH:-token}
+    DA_APPROVER_REPO: ${DA_APPROVER_REPO:-}
+    DA_APPROVERS: ${DA_APPROVERS:-}
   security_opt: ["no-new-privileges:true"]
   cap_drop: [ALL]
 

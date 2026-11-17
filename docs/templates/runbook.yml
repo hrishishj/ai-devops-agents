@@ -1,0 +1,56 @@
+# Copy to .github/workflows/runbook.yml in the repository named by DA_RUNBOOK_REPO.
+#
+# The incident agent dispatches this workflow to run a REGISTERED runbook (see runbooks/*/runbook.yaml).
+# It only ever runs a script that you committed to `runbook-scripts/<Name>.sh`; nothing the model
+# says is executed as a command. Parameters arrive as JSON in $PARAMS and are validated by the agent
+# against the runbook's JSON Schema before dispatch.
+
+name: Runbook
+run-name: runbook ${{ inputs.correlation_id }} # the agent finds its run by this id; do not change
+
+on:
+  workflow_dispatch:
+    inputs:
+      runbook:
+        description: Automation runbook name, e.g. Restart-Service
+        required: true
+        type: string
+      params:
+        description: JSON parameters
+        required: true
+        type: string
+        default: "{}"
+      correlation_id:
+        description: Set by the agent
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    # Use a self-hosted runner (free) if the runbook must reach your own infrastructure.
+    runs-on: ubuntu-latest
+    # Optional human approval gate: create an Environment named "runbooks" and add required reviewers.
+    # (Required reviewers are free on public repositories; private repositories need a paid GitHub plan.)
+    environment: runbooks
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Run runbook script
+        env:
+          RUNBOOK: ${{ inputs.runbook }}
+          PARAMS: ${{ inputs.params }}
+        run: |
+          set -euo pipefail
+          case "$RUNBOOK" in
+            ""|*[!A-Za-z0-9_-]*) echo "invalid runbook name"; exit 1 ;;
+          esac
+          script="runbook-scripts/${RUNBOOK}.sh"
+          if [ ! -f "$script" ]; then
+            echo "No script at $script. Add one, or this runbook cannot run."
+            exit 1
+          fi
+          echo "Running $script"
+          bash "$script"

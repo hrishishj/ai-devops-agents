@@ -62,6 +62,9 @@ export DA_LLM_BASE_URL=http://localhost:11434/v1 DA_LLM_MODEL_LARGE=qwen2.5-code
 devopsagents run-pr --repo owner/name --pr 42      # shadow mode: prints what it would post
 ```
 
+Incident response without Azure (Alertmanager + Prometheus + GitHub Actions runbooks + GitHub-verified approvals):
+[docs/free-incidents.md](docs/free-incidents.md).
+
 Prefer an always-on local stack (Ollama + PostgreSQL + API + worker)? `docker compose up -d --build` - see
 [docs/local-docker.md](docs/local-docker.md).
 
@@ -121,9 +124,9 @@ Automation runbook it names, run `devopsagents check-config`, and list it in `pr
   that import other repo code will not verify; it does not measure real coverage yet.
 - **Recovery verification** uses the Azure Monitor alert state (`AlertStateVerifier`, enabled when `DA_AUTOMATION_ACCOUNT_URL` is set);
   anything it cannot determine escalates to a human. Rollback is suggested in the ticket, not executed automatically.
-- **Approver identity**: `DA_ADMIN_AUTH=easyauth` takes the approver from a validated Entra principal (role `Incident.Approver`); it is
-  only safe when ingress is reachable solely through Easy Auth/APIM — that front door is not provisioned by the Terraform yet, so the
-  default remains shared-token mode with a self-declared approver (ADR-0004). No two-person rule or approval expiry yet.
+- **Approver identity**: `DA_ADMIN_AUTH=github` verifies the approver with their own GitHub token (free; write access to the
+  approver repo required, optional allow-list). `easyauth` (Entra) is also supported. The default `token` mode still trusts a
+  self-declared name. No two-person rule or approval expiry yet (ADR-0004).
 - **DB migrations** use Alembic (`devopsagents migrate`); in Azure a Container Apps job runs it after each deploy and apps run with
   `DA_CREATE_SCHEMA=false`. Locally the schema is auto-created.
 - **Terraform** passes `fmt` and `validate` (1.9.8, `init -backend=false`) but has never been planned or applied against a real
