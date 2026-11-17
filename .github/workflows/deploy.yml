@@ -1,0 +1,112 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [staging, prod]
+        default: staging
+
+permissions:
+  id-token: write # OIDC to Azure: no stored credentials
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.event.inputs.environment || 'staging' }}
+  cancel-in-progress: false
+
+env:
+  ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - id: meta
+        run: echo "image=${{ vars.ACR_LOGIN_SERVER }}/devopsagents:${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+      - run: az acr login --name "${{ vars.ACR_NAME }}"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/container/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.image }}
+
+  apply:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ github.event.inputs.environment || 'staging' }} # prod requires reviewers
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - name: Terraform apply
+        working-directory: infra/terraform
+        env:
+          ARM_USE_OIDC: "true"
+          ARM_USE_AZUREAD: "true"
+          ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_image: ${{ needs.build.outputs.image }}
+          TF_VAR_acr_login_server: ${{ vars.ACR_LOGIN_SERVER }}
+          TF_VAR_acr_id: ${{ vars.ACR_ID }}
+          TF_VAR_github_app_id: ${{ vars.GH_APP_ID }}
+          TF_VAR_github_app_private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          TF_VAR_github_webhook_secret: ${{ secrets.GH_WEBHOOK_SECRET }}
+          TF_VAR_alert_token: ${{ secrets.ALERT_TOKEN }}
+          TF_VAR_admin_token: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ vars.TFSTATE_RG }}" \
+            -backend-config="storage_account_name=${{ vars.TFSTATE_STORAGE }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=ai-devops-agents-${ENVIRONMENT}.tfstate" \
+            -backend-config="use_azuread_auth=true"
+          terraform apply -auto-approve -var-file="envs/${ENVIRONMENT}.tfvars"
+      - name: Run database migrations
+        working-directory: infra/terraform
+        run: |
+          RG=$(terraform output -raw resource_group)
+          JOB=$(terraform output -raw migrate_job_name)
+          EXEC=$(az containerapp job start -n "$JOB" -g "$RG" --query name -o tsv)
+          for i in $(seq 1 40); do
+            STATUS=$(az containerapp job execution show -n "$JOB" -g "$RG" --job-execution-name "$EXEC" --query properties.status -o tsv)
+            echo "migration: $STATUS"
+            case "$STATUS" in
+              Succeeded) exit 0 ;;
+              Failed|Stopped|Degraded) echo "migration failed" && exit 1 ;;
+            esac
+            sleep 15
+          done
+          echo "migration timed out" && exit 1
+      - name: Smoke test
+        working-directory: infra/terraform
+        run: |
+          URL=$(terraform output -raw api_url)
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$URL/health/ready" || true)
+            [ "$code" = "200" ] && echo "healthy" && exit 0
+            sleep 15
+          done
+          echo "readiness check failed" && exit 1
