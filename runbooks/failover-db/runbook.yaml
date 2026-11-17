@@ -1,0 +1,17 @@
+name: failover-db
+description: Trigger a managed database failover to the replica. Stateful — always needs human approval.
+tier: 2
+automation_runbook: Failover-Database
+params_schema:
+  type: object
+  additionalProperties: false
+  required: [server_name, resource_group]
+  properties:
+    server_name: { type: string, pattern: "^[a-zA-Z0-9-]{3,63}$" }
+    resource_group: { type: string, pattern: "^[a-zA-Z0-9._()-]{1,90}$" }
+allowed_environments: [staging, prod]
+cooldown_seconds: 7200
+max_per_hour: 1
+verification:
+  description: Primary is reachable, replication healthy, error rate returns to baseline.
+  wait_seconds: 300

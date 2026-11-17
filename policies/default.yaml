@@ -1,0 +1,19 @@
+# Policy-as-data for the incident agent. Reviewed like code (CODEOWNERS: platform + SRE leads).
+kill_switch: false
+
+# Tier-1 (reversible) actions may run unattended only in these environments.
+# Add "prod" ONLY after shadow-mode precision meets the SLO in docs/slo.md.
+auto_environments: [dev, staging]
+
+# Model confidence is advisory: below this, a human must approve. It can never authorise alone.
+min_confidence_for_auto: 0.8
+
+# Tier >= 1 actions must cite collected evidence (metrics/log queries).
+require_evidence: true
+
+# Example:
+# freeze_windows:
+#   - start: 2026-12-20T00:00:00Z
+#     end:   2027-01-03T00:00:00Z
+#     reason: holiday change freeze
+freeze_windows: []

@@ -1,0 +1,19 @@
+name: scale-in
+description: Roll back a previous scale-out by removing replicas.
+tier: 1
+automation_runbook: Scale-In
+params_schema:
+  type: object
+  additionalProperties: false
+  required: [target_type, target_name, resource_group, remove_replicas]
+  properties:
+    target_type: { enum: [ContainerApp, AKSNodePool, AKSDeployment] }
+    target_name: { type: string, pattern: "^[a-zA-Z0-9._-]{1,128}$" }
+    resource_group: { type: string, pattern: "^[a-zA-Z0-9._()-]{1,90}$" }
+    remove_replicas: { type: integer, minimum: 1, maximum: 3 }
+allowed_environments: [dev, staging, prod]
+cooldown_seconds: 600
+max_per_hour: 3
+verification:
+  description: Service remains healthy after replica reduction.
+  wait_seconds: 120
