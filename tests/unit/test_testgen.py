@@ -75,7 +75,7 @@ class LocalTestSandbox:
                 p = Path(d, rel)
                 p.parent.mkdir(parents=True, exist_ok=True)
                 p.write_text(content, encoding="utf-8")
-            r = subprocess.run(  # noqa: S603
+            r = subprocess.run(
                 [sys.executable, "-m", "pytest", "-q", "-rA", "--tb=short", "-p", "no:cacheprovider", target],
                 cwd=d,
                 capture_output=True,

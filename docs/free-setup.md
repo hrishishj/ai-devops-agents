@@ -54,6 +54,14 @@ Optional secret `AI_LLM_API_KEY` (defaults to `GITHUB_TOKEN`, which is right for
 
 To use the workflow in **another** repository, copy `ai-review.yml` into it and set the same variables.
 
+## Optional: verified test generation (free, Docker)
+The security agent can propose pytest tests for changed functions, run them in a locked-down Docker container (no network, read-only,
+non-root, limited memory/CPU) and post only the tests that pass. Off by default.
+1. Set the repository variable `AI_TESTGEN=true` (the workflow then builds the sandbox image on the runner).
+2. Opt the repo in with `.ai-agents.yml`: `tests: {enabled: true}`.
+Locally: `make sandbox-image`, then `DA_SANDBOX_KIND=docker devopsagents run-pr ...`. This is container-grade isolation: fine for
+your own repositories and ephemeral runners, not for code from strangers (see ADR-0005).
+
 ## What you will see
 - **Shadow mode is the default**: nothing is posted to the PR. Open the workflow run -> *Summary* to read what the review
   *would* have said (counts, coverage, findings). When the quality looks good, add `.ai-agents.yml` with

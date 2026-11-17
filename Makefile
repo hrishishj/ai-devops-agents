@@ -1,4 +1,4 @@
-.PHONY: dev test lint types arch check eval image tf-validate up down logs compose-check
+.PHONY: sandbox-image dev test lint types arch check eval image tf-validate up down logs compose-check
 
 dev:
 	uv venv --python 3.12 && uv pip install -e ".[dev]"
@@ -39,3 +39,6 @@ logs:
 
 compose-check:
 	docker compose config -q
+
+sandbox-image:
+	docker build -t devopsagents-sandbox infra/sandbox
