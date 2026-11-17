@@ -10,6 +10,7 @@ from devopsagents.agents.incident.workflow import IncidentAgent
 from devopsagents.agents.review.workflow import ReviewAgent
 from devopsagents.agents.security.testgen import TestGenerator
 from devopsagents.agents.security.workflow import SecurityAgent
+from devopsagents.core.config.paths import resolve_data
 from devopsagents.core.config.settings import Settings
 from devopsagents.core.jobs.queue import InMemoryQueue, JobQueue
 from devopsagents.core.jobs.runner import Handler
@@ -97,7 +98,17 @@ def build_container(
     store = JobStore(make_engine(settings.database_url), create_schema=settings.create_schema)
 
     if backend is None:
-        if settings.openai_endpoint:
+        if settings.llm_provider == "openai_compat":
+            from devopsagents.integrations.llm.openai_compat import OpenAICompatBackend
+
+            backend = OpenAICompatBackend(
+                settings.llm_base_url,
+                settings.llm_api_key.get_secret_value(),
+                settings.llm_model_large,
+                settings.llm_model_small,
+                json_mode=settings.llm_json_mode,
+            )
+        elif settings.openai_endpoint:
             from devopsagents.integrations.azure.openai_backend import AzureOpenAIBackend
 
             backend = AzureOpenAIBackend(
@@ -107,7 +118,7 @@ def build_container(
                 settings.model_small,
             )
         else:
-            backend = NoBackend()  # type: ignore[assignment]
+            backend = NoBackend()  # type: ignore[assignment]  # provider=azure but no endpoint
     assert backend is not None
     gateway = LLMGateway(
         backend,
@@ -117,9 +128,9 @@ def build_container(
         max_output_tokens=settings.max_output_tokens,
         kill_switch=lambda: settings.kill_switch,
     )
-    prompts = PromptRegistry(base / settings.prompts_dir)
-    registry = RunbookRegistry.load(base / settings.runbooks_dir)
-    policy_cfg = PolicyConfig.load(base / settings.policy_file)
+    prompts = PromptRegistry(resolve_data(base, settings.prompts_dir))
+    registry = RunbookRegistry.load(resolve_data(base, settings.runbooks_dir))
+    policy_cfg = PolicyConfig.load(resolve_data(base, settings.policy_file))
     policy_cfg.kill_switch = policy_cfg.kill_switch or settings.kill_switch
     policy = PolicyEngine(policy_cfg, registry, store)
 
@@ -138,6 +149,8 @@ def build_container(
             settings.github_app_private_key.get_secret_value(),
             api_url=settings.github_api_url,
         )
+    elif settings.github_token.get_secret_value():  # Actions GITHUB_TOKEN / PAT, no GitHub App
+        github = GitHubClient(token=settings.github_token.get_secret_value(), api_url=settings.github_api_url)
 
     handlers: dict[AgentKind, Handler] = {}
     if github is not None:

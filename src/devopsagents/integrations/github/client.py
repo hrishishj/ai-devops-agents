@@ -38,14 +38,16 @@ class GitHubError(Exception):
 class GitHubClient:
     def __init__(
         self,
-        app_id: str,
-        private_key: str,
+        app_id: str = "",
+        private_key: str = "",
         *,
+        token: str = "",
         api_url: str = "https://api.github.com",
         transport: httpx.BaseTransport | None = None,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self._app_id = app_id
+        self._static_token = token  # Actions GITHUB_TOKEN / PAT: no app, no installation
         self._key = private_key.replace("\\n", "\n")
         self._http = httpx.Client(base_url=api_url, transport=transport, timeout=30.0)
         self._clock = clock
@@ -59,6 +61,8 @@ class GitHubClient:
         )
 
     def _installation_token(self, installation_id: int) -> str:
+        if self._static_token:
+            return self._static_token
         cached = self._tokens.get(installation_id)
         if cached and cached[1] - 60 > self._clock():
             return cached[0]
