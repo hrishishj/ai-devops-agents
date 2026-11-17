@@ -29,6 +29,40 @@ class ReviewComment:
     body: str
 
 
+@dataclass(frozen=True)
+class ReviewThread:
+    id: str  # GraphQL node id (needed to resolve it)
+    is_resolved: bool
+    is_outdated: bool  # the code it was attached to has since changed
+    resolved_by: str | None
+    body: str  # first comment
+    thumbs_down: int
+
+
+_THREADS_QUERY = """
+query($owner: String!, $name: String!, $number: Int!) {
+  viewer { login }
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100) {
+        nodes {
+          id isResolved isOutdated
+          resolvedBy { login }
+          comments(first: 1) {
+            nodes { body reactions(content: THUMBS_DOWN) { totalCount } }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+_RESOLVE_MUTATION = """
+mutation($id: ID!) { resolveReviewThread(input: {threadId: $id}) { thread { id isResolved } } }
+"""
+
+
 class GitHubError(Exception):
     def __init__(self, status: int, message: str) -> None:
         super().__init__(f"GitHub API {status}: {message}")
@@ -141,6 +175,38 @@ class GitHubClient:
             json={"title": title[:250], "body": body[:60000], "labels": labels},
         )
         return str(r.json().get("html_url", ""))
+
+    def _graphql(self, inst: int, query: str, variables: dict[str, Any]) -> dict[str, Any]:
+        r = self._req(inst, "POST", "/graphql", json={"query": query, "variables": variables})
+        body: dict[str, Any] = r.json()
+        if body.get("errors"):  # GraphQL reports failures with HTTP 200
+            raise GitHubError(r.status_code, str(body["errors"])[:300])
+        data: dict[str, Any] = body.get("data") or {}
+        return data
+
+    def review_threads(self, inst: int, repo: str, number: int) -> tuple[str, list[ReviewThread]]:
+        """(login of the token's user, review threads of the PR). Up to 100 threads."""
+        owner, name = repo.split("/", 1)
+        data = self._graphql(inst, _THREADS_QUERY, {"owner": owner, "name": name, "number": number})
+        viewer = str((data.get("viewer") or {}).get("login") or "")
+        pr = (data.get("repository") or {}).get("pullRequest") or {}
+        threads: list[ReviewThread] = []
+        for n in (pr.get("reviewThreads") or {}).get("nodes") or []:
+            first = ((n.get("comments") or {}).get("nodes") or [{}])[0]
+            threads.append(
+                ReviewThread(
+                    id=str(n["id"]),
+                    is_resolved=bool(n.get("isResolved")),
+                    is_outdated=bool(n.get("isOutdated")),
+                    resolved_by=(n.get("resolvedBy") or {}).get("login"),
+                    body=str(first.get("body") or ""),
+                    thumbs_down=int((first.get("reactions") or {}).get("totalCount") or 0),
+                )
+            )
+        return viewer, threads
+
+    def resolve_review_thread(self, inst: int, thread_id: str) -> None:
+        self._graphql(inst, _RESOLVE_MUTATION, {"id": thread_id})
 
     def dispatch_workflow(
         self, inst: int, repo: str, workflow: str, ref: str, inputs: dict[str, str]
