@@ -72,3 +72,4 @@ optional/azure/terraform/*.tfstate*
 optional/azure/terraform/envs/*.backend.hcl
 optional/azure/terraform/terraform.tfvars
 .ruff_cache/
+backups/

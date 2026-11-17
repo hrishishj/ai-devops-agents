@@ -26,6 +26,7 @@ jobs:
         run: |
           .venv/bin/ruff check src tests evals
           .venv/bin/ruff format --check src tests evals
+          .venv/bin/shellcheck scripts/*.sh
       - name: Types (strict)
         run: .venv/bin/mypy -p devopsagents
       - name: Architecture layering
