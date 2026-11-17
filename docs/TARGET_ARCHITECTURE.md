@@ -333,7 +333,7 @@ imports live only in `integrations/`. No import-time side effects (no clients or
 |---|---|---|---|
 | **0. Foundations** | 1–2 | Repo scaffold, CI, typed settings, Postgres + job store (lease/idempotency), ingress API with HMAC, Service Bus, telemetry skeleton, Terraform `dev` | Replayed webhook yields exactly one completed job; kill -9 worker recovers |
 | **1. LLM platform** | 3–4 | Gateway (structured outputs, budgets, cache, redaction), prompt registry, eval harness skeleton | Budget cap enforced in test; eval runs in CI |
-| **2. Review agent (shadow)** | 5–7 | Chunking, grounding, ranking, publish, thread resolution; shadow on 2–3 internal repos | Grounding rate > 98%; acceptance measured on ≥ 100 comments |
+| **2. Review agent (shadow)** | 5–7 | Chunking, grounding, ranking, publish, thread resolution and reviewer feedback; shadow on 2–3 internal repos | Grounding rate > 98%; acceptance measured on ≥ 100 comments |
 | **3. Review agent (live)** | 8 | Enable `comment` mode, feedback capture, per-repo config | Acceptance ≥ 50%, p95 latency met |
 | **4. Security & tests** | 9–12 | Scanner integration, triage, SARIF/Check Run, diff-cover, sandboxed test generation | FP rate < 20%; generated tests run green before posting |
 | **5. Incident agent (read-only)** | 13–16 | Alert normalisation, evidence tools, hypotheses, ticketing, retrieval of past incidents | Root-cause top-3 hit rate ≥ 70% on labelled history |
