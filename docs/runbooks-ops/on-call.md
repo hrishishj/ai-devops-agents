@@ -26,3 +26,12 @@ Schema changes: add an Alembic revision under `src/devopsagents/migrations/versi
 and migrations drift). Deploys run the `caj-*-migrate` job automatically; to run by hand:
 `az containerapp job start -n <job> -g <rg>` or locally `devopsagents migrate` with `DA_DATABASE_URL` set.
 Keep migrations additive (expand/contract) because old and new revisions overlap during a deploy.
+
+## Enabling deployment
+The Deploy workflow is skipped until `AZURE_CLIENT_ID` is set as a repository variable. To enable it, configure GitHub OIDC
+federation for an Azure app registration, then set:
+
+- **Variables:** `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `ACR_NAME`, `ACR_LOGIN_SERVER`, `ACR_ID`,
+  `GH_APP_ID`, `TFSTATE_RG`, `TFSTATE_STORAGE`
+- **Secrets:** `GH_APP_PRIVATE_KEY`, `GH_WEBHOOK_SECRET`, `ALERT_TOKEN`, `ADMIN_TOKEN`
+- **Environments:** create `staging` and `prod`; add required reviewers on `prod`.
