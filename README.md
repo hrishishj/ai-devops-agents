@@ -68,6 +68,9 @@ Incident response without Azure (Alertmanager + Prometheus + GitHub Actions runb
 
 Monitoring (metrics endpoint, self-alerts, Grafana dashboard, all free): [docs/observability.md](docs/observability.md).
 
+**New here?** Follow [docs/first-run.md](docs/first-run.md) to try it on a real PR and judge the quality, and see
+[docs/troubleshooting.md](docs/troubleshooting.md) when something goes wrong.
+
 Prefer an always-on local stack (Ollama + PostgreSQL + API + worker)? `docker compose up -d --build` - see
 [docs/local-docker.md](docs/local-docker.md). Back up its database with `make backup` ([docs/backup-restore.md](docs/backup-restore.md)).
 
