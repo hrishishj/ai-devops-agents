@@ -79,6 +79,7 @@ configured, review/security workers are not registered.
    version: 1
    review:   { mode: comment, max_comments: 10, paths_ignore: ["**/generated/**"] }
    security: { enabled: true, fail_on: [critical, high] }
+   tests:    { enabled: true }          # verified test generation (needs the sandbox)
    ```
 3. Watch shadow results (`job.result`) and the acceptance rate; flip `mode: comment` when they meet [docs/slo.md](docs/slo.md).
 
@@ -96,8 +97,10 @@ Automation runbook it names, run `devopsagents check-config`, and list it in `pr
 
 ## Known limitations (honest status)
 
-- **Test generation** (sandboxed generate-and-run) from the target design is **not built yet**; the security agent
-  currently does detection + triage only.
+- **Test generation** is implemented but opt-in (`tests: {enabled: true}` in `.ai-agents.yml`) and needs an isolated sandbox
+  (`DA_SANDBOX_ENDPOINT`, an Azure Container Apps session pool whose image includes pytest; not provisioned by the Terraform).
+  The Azure adapter is contract-tested with a mock only. It verifies tests against the PR version of a single file, so modules
+  that import other repo code will not verify; it does not measure real coverage yet.
 - **Recovery verification** uses the Azure Monitor alert state (`AlertStateVerifier`, enabled when `DA_AUTOMATION_ACCOUNT_URL` is set);
   anything it cannot determine escalates to a human. Rollback is suggested in the ticket, not executed automatically.
 - **Approver identity**: `DA_ADMIN_AUTH=easyauth` takes the approver from a validated Entra principal (role `Incident.Approver`); it is

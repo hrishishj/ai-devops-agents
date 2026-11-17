@@ -10,3 +10,4 @@
 | Stale/duplicate work | Idempotent keys, supersede, `is_current` check before side effects | — |
 | Semgrep on untrusted code | Throw-away dir, no shell, timeout, metrics off, path-traversal guard; deploy workers with restricted egress | Scanner vulnerabilities |
 | Credential theft | Managed identity, Entra-only OpenAI/Service Bus, Key Vault via RBAC, GitHub OIDC deploy | Postgres admin password lives in Key Vault (move to Entra auth) |
+| Running generated tests executes untrusted PR code | Executed only via the `Sandbox` port against an isolated session with no identity or secrets; AST guard rejects dangerous imports/calls before submission; only tests that pass are reported; if the sandbox is unavailable the feature is skipped, never run locally | Sandbox escape; session image must be hardened and egress disabled |
