@@ -71,6 +71,17 @@ class UsageRow(Base):
     tokens: Mapped[int] = mapped_column(Integer)
 
 
+class FeedbackRow(Base):
+    """Findings a human rejected (resolved the thread or reacted with a thumbs-down)."""
+
+    __tablename__ = "finding_feedback"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    repo: Mapped[str] = mapped_column(String(256), index=True)
+    fp: Mapped[str] = mapped_column(String(32), index=True)
+    verdict: Mapped[str] = mapped_column(String(16))
+    ts: Mapped[float] = mapped_column(Float, index=True)
+
+
 def _dt(ts: float | None) -> datetime | None:
     return datetime.fromtimestamp(ts, UTC) if ts is not None else None
 
@@ -322,6 +333,30 @@ class JobStore:
                 select(UsageRow.tokens).where(UsageRow.day == self._day(), UsageRow.scope == scope)
             )
             return sum(rows)
+
+    # ---- reviewer feedback -----------------------------------------------------------------
+    def record_feedback(self, repo: str, fp: str, verdict: str = "dismissed") -> bool:
+        """Remember that a human rejected this finding. Returns True if it was new."""
+        with self._sessions.begin() as s:
+            exists = s.scalar(
+                select(FeedbackRow.id).where(
+                    FeedbackRow.repo == repo, FeedbackRow.fp == fp, FeedbackRow.verdict == verdict
+                )
+            )
+            if exists is not None:
+                return False
+            s.add(FeedbackRow(repo=repo, fp=fp, verdict=verdict, ts=self._clock()))
+            return True
+
+    def dismissed_fingerprints(self, repo: str, max_age_days: int = 90) -> set[str]:
+        cutoff = self._clock() - max_age_days * 86400
+        with self._sessions() as s:
+            rows = s.scalars(
+                select(FeedbackRow.fp).where(
+                    FeedbackRow.repo == repo, FeedbackRow.verdict == "dismissed", FeedbackRow.ts >= cutoff
+                )
+            )
+            return set(rows)
 
     def now(self) -> float:
         return self._clock()
