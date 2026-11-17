@@ -139,6 +139,9 @@ class IncidentAgent:
                 else None,
                 "alert": alert.model_dump(mode="json"),
                 "evidence": ev_lines,
+                # Pending approvals expire, and risky actions need two distinct verified approvers.
+                "expires_at": self._store.now() + self._policy.approval_ttl_seconds,
+                "required_approvals": self._policy.required_approvals(req),
             }
 
     def _execute_approved(self, job: Job) -> dict[str, Any]:
@@ -146,6 +149,10 @@ class IncidentAgent:
         lift a REQUIRE_APPROVAL, but never a DENY (cooldown, bad params, kill switch...)."""
         req = ActionRequest.model_validate(job.payload["action"])
         approver = str(job.payload["approver"])
+        expires_at = job.payload.get("expires_at")
+        if isinstance(expires_at, int | float) and self._store.now() > float(expires_at):
+            self._store.audit(approver, "approval.expired", req.incident_id, {"runbook": req.runbook})
+            return {"status": "denied", "reasons": ["approval expired"]}
         alert = AlertEvent.model_validate(job.payload["alert"])
         raw_ev = job.payload.get("evidence")
         ev_lines = [str(x) for x in raw_ev] if isinstance(raw_ev, list) else []
@@ -192,15 +199,7 @@ class IncidentAgent:
                 "approved_by": approver,
             },
         )
-        auto_job = self._auto.start_job(spec.automation_runbook, req.params)
-
-        waited, state = 0.0, "Running"
-        while waited <= self._max_wait:
-            state = self._auto.job_status(auto_job)
-            if state in TERMINAL:
-                break
-            self._sleep(self._poll)
-            waited += self._poll
+        auto_job, state = self._run_automation(spec.automation_runbook, req.params)
         if state != "Completed":
             note = f"Runbook ended in state {state!r} (job {auto_job})."
             url = self._ticket(alert, analysis, ev_lines, note, proposed=req)
@@ -219,7 +218,14 @@ class IncidentAgent:
                 "verified": True,
             }
 
-        rollback = f" Rollback runbook available: {spec.rollback}." if spec.rollback else ""
+        rollback_info: dict[str, Any] | None = None
+        if healthy is False and spec.auto_rollback and self._store.is_current(job.id):
+            rollback_info = self._rollback(alert, req, spec, ev_lines)
+            rollback = f" Automatic rollback: {rollback_info['summary']}."
+        elif spec.rollback:
+            rollback = f" Rollback runbook available: {spec.rollback}."
+        else:
+            rollback = ""
         reason = "still failing" if healthy is False else "could not be verified"
         url = self._ticket(
             alert,
@@ -228,7 +234,73 @@ class IncidentAgent:
             f"Action ran but recovery {reason}.{rollback} Paging on-call.",
             proposed=req,
         )
-        return {"status": "escalated", "verified": healthy, "automation_job": auto_job, "ticket": url}
+        return {
+            "status": "escalated",
+            "verified": healthy,
+            "automation_job": auto_job,
+            "ticket": url,
+            "rollback": rollback_info,
+        }
+
+    def _run_automation(self, automation_runbook: str, params: dict[str, Any]) -> tuple[str, str]:
+        """Start a runbook and wait (bounded) for it to finish. Returns (automation job id, final state)."""
+        auto_job = self._auto.start_job(automation_runbook, params)
+        waited, state = 0.0, "Running"
+        while waited <= self._max_wait:
+            state = self._auto.job_status(auto_job)
+            if state in TERMINAL:
+                break
+            self._sleep(self._poll)
+            waited += self._poll
+        return auto_job, state
+
+    def _rollback(
+        self, alert: AlertEvent, req: ActionRequest, spec: Any, ev_lines: list[str]
+    ) -> dict[str, Any]:
+        """Undo a failed action. The rollback is itself a registered runbook and goes through the same
+        policy engine (tier, environment, approval, kill switch); only the per-target cooldown is waived."""
+        params = self._reg.build_rollback_params(req.runbook, req.params)
+        rb_spec = self._reg.get(spec.rollback) if spec.rollback else None
+        if params is None or rb_spec is None:
+            return {"attempted": False, "summary": "could not build rollback parameters"}
+        rb = ActionRequest(
+            runbook=rb_spec.name,
+            params=params,
+            environment=req.environment,
+            target=req.target,
+            incident_id=req.incident_id,
+            severity=req.severity,
+            rationale=f"rollback of {req.runbook}",
+            model_confidence=1.0,  # deterministic compensating action: not a model judgement
+        )
+        decision = self._policy.evaluate(rb, evidence=ev_lines, is_rollback=True)
+        self._store.audit(
+            "policy",
+            f"policy.rollback.{decision.decision.value}",
+            req.incident_id,
+            {"runbook": rb.runbook, "reasons": decision.reasons},
+        )
+        if decision.decision != Decision.ALLOW:
+            why = "; ".join(decision.reasons)
+            return {"attempted": False, "summary": f"not performed ({why})", "reasons": decision.reasons}
+        self._store.audit(
+            "agent",
+            "action.executed",
+            req.target,
+            {
+                "runbook": rb.runbook,
+                "params": rb.params,
+                "incident": req.incident_id,
+                "rollback_of": req.runbook,
+            },
+        )
+        job_id, state = self._run_automation(rb_spec.automation_runbook, params)
+        return {
+            "attempted": True,
+            "state": state,
+            "automation_job": job_id,
+            "summary": f"{rb.runbook} finished as {state!r}",
+        }
 
     def _ticket(
         self,
