@@ -126,10 +126,10 @@ Automation runbook it names, run `devopsagents check-config`, and list it in `pr
   only). Azure session pools are the other adapter (contract-tested with a mock only). Tests are verified against the PR version of a
   single file, so modules that import other repo code will not verify; real coverage is not measured.
 - **Recovery verification** uses the Azure Monitor alert state (`AlertStateVerifier`, enabled when `DA_AUTOMATION_ACCOUNT_URL` is set);
-  anything it cannot determine escalates to a human. Rollback is suggested in the ticket, not executed automatically.
+  anything it cannot determine escalates to a human. Rollback is opt-in per runbook (`auto_rollback`) and goes through the same policy engine.
 - **Approver identity**: `DA_ADMIN_AUTH=github` verifies the approver with their own GitHub token (free; write access to the
   approver repo required, optional allow-list). `easyauth` (Entra) is also supported. The default `token` mode still trusts a
-  self-declared name. No two-person rule or approval expiry yet (ADR-0004).
+  self-declared name. Pending approvals expire (`approval_ttl_minutes`) and tier-2 actions in prod need two distinct verified approvers.
 - **DB migrations** use Alembic (`devopsagents migrate`); in Azure a Container Apps job runs it after each deploy and apps run with
   `DA_CREATE_SCHEMA=false`. Locally the schema is auto-created.
 - **Azure deployment is optional** (`optional/azure/`). Its Terraform passes `fmt`/`validate` but has never been planned or applied against a

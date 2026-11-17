@@ -57,10 +57,24 @@ curl -X POST -H "Authorization: Bearer $(gh auth token)" http://127.0.0.1:8000/a
 The audit log records the verified GitHub login (`verified_identity: true`); any approver name in the request body is ignored. The
 policy is re-checked on approval: an approval can lift "needs a human" but never a denial (cooldown, bad parameters, kill switch).
 
+- **Expiry:** a pending approval is valid for `approval_ttl_minutes` (default 120, in `policies/default.yaml`). After that the endpoint
+  returns `410` and the agent also refuses to run it; if the alert is still firing it will trigger a fresh analysis.
+- **Two-person rule:** actions at or above `two_person_min_tier` (default 2, e.g. `failover-db`) in `two_person_environments`
+  (default `prod`) need **two distinct verified approvers**. The first call returns `pending_more_approvals`; the action runs when a
+  second, different person approves. Self-declared names (`token` mode) are rejected for these actions.
+
+## 5. Automatic rollback (opt-in)
+A runbook can name a `rollback` runbook and a `rollback_params` mapping (see `runbooks/scale-out/runbook.yaml`: `"{add_replicas}"` becomes
+`remove_replicas`, keeping the integer type). With `auto_rollback: true`, if recovery is verified as **failed** (never when it is merely
+unknown) the agent runs the rollback through the **same policy engine** (tier, environment, approval, kill switch; only the per-target
+cooldown is waived). It is off for every shipped runbook: undoing a fix that merely did not help (for example removing replicas that were
+just added) can make an incident worse, so enable it only where undo is clearly safer than leaving the change.
+
 ## Honest limits
 - Not run against a real Prometheus, Alertmanager or GitHub Actions workflow: all adapters are tested with mock transports and a
   scripted model. Try it in a non-production environment first, with `auto_environments` left at dev/staging.
 - GitHub-hosted runners cannot reach private infrastructure; use a self-hosted runner for that.
+- Rollback and the two-person rule are tested with fakes only; try them on a non-production runbook first.
 - The GitHub token you give the agent is powerful (it can dispatch workflows). Use a fine-grained token limited to the ops repo.
 - Metrics like `process_cpu_seconds_total` exist only if the target exposes them; add your own PromQL templates in
   `integrations/prometheus/client.py` for other exporters.

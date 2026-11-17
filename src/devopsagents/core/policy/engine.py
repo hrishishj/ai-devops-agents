@@ -30,6 +30,11 @@ class PolicyConfig(BaseModel):
     min_confidence_for_auto: float = Field(default=0.8, ge=0, le=1)
     require_evidence: bool = True
     freeze_windows: list[FreezeWindow] = Field(default_factory=list)
+    # A pending human approval expires after this long (the alert will re-trigger analysis if it persists).
+    approval_ttl_minutes: int = Field(default=120, ge=1)
+    # Actions at or above this tier, in these environments, need TWO distinct verified approvers.
+    two_person_min_tier: int = Field(default=2, ge=0, le=3)
+    two_person_environments: list[str] = Field(default_factory=lambda: ["prod"])
 
     @classmethod
     def load(cls, path: Path | str) -> PolicyConfig:
@@ -45,9 +50,30 @@ class PolicyEngine:
         self._reg = registry
         self._store = store
 
+    @property
+    def approval_ttl_seconds(self) -> int:
+        return self._cfg.approval_ttl_minutes * 60
+
+    def required_approvals(self, req: ActionRequest) -> int:
+        spec = self._reg.get(req.runbook)
+        if (
+            spec is not None
+            and spec.tier >= self._cfg.two_person_min_tier
+            and req.environment in self._cfg.two_person_environments
+        ):
+            return 2
+        return 1
+
     def evaluate(
-        self, req: ActionRequest, *, evidence: list[str], now: datetime | None = None
+        self,
+        req: ActionRequest,
+        *,
+        evidence: list[str],
+        now: datetime | None = None,
+        is_rollback: bool = False,
     ) -> PolicyResult:
+        """`is_rollback` exempts a compensating action from the per-target cooldown (it necessarily follows
+        the action it undoes); the hourly rate limit and every other rule still apply."""
         now = now or datetime.fromtimestamp(self._store.now(), UTC)
         deny = self._deny
 
@@ -72,7 +98,7 @@ class PolicyEngine:
 
         now_ts = now.timestamp()
         recent_cd = self._store.count_audit("action.executed", req.target, now_ts - spec.cooldown_seconds)
-        if recent_cd:
+        if recent_cd and not is_rollback:
             return deny(f"cooldown active ({spec.cooldown_seconds}s) for {req.target}")
         recent_hr = self._store.count_audit("action.executed", req.target, now_ts - 3600)
         if recent_hr >= spec.max_per_hour:
