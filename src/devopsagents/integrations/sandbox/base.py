@@ -18,6 +18,8 @@ class SandboxResult:
     stdout: str
     stderr: str
     timed_out: bool = False
+    # source path -> {"executed": [lines], "missing": [lines]}; None when coverage was not measured
+    coverage: dict[str, dict[str, list[int]]] | None = None
 
 
 class SandboxUnavailable(Exception):
@@ -25,9 +27,16 @@ class SandboxUnavailable(Exception):
 
 
 class Sandbox(Protocol):
-    def run_pytest(self, files: dict[str, str], target: str, timeout_seconds: int = 60) -> SandboxResult:
+    def run_pytest(
+        self,
+        files: dict[str, str],
+        target: str,
+        timeout_seconds: int = 60,
+        cover: list[str] | None = None,
+    ) -> SandboxResult:
         """Write `files` (relative path -> content) into a fresh directory and run
-        `python -m pytest -q -rA --tb=short -p no:cacheprovider <target>` there."""
+        `python -m pytest -q -rA --tb=short -p no:cacheprovider <target>` there. If `cover` lists source
+        paths and the `coverage` package is available, line coverage of those files is returned too."""
         ...
 
 
@@ -47,7 +56,7 @@ RESULT_MARKER = "@@RESULT@@"
 # Script executed INSIDE the isolated environment. It receives {files, target, timeout} as JSON, writes the
 # files into a fresh temp directory, runs pytest there, and prints one marked JSON result line.
 RUNNER_BODY = r"""
-import json, subprocess, sys, tempfile, pathlib
+import json, os, subprocess, sys, tempfile, pathlib
 payload = json.loads(__PAYLOAD__)
 root = pathlib.Path(tempfile.mkdtemp(prefix="gen-"))
 for rel, content in payload["files"].items():
@@ -56,13 +65,45 @@ for rel, content in payload["files"].items():
         continue
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(content, encoding="utf-8")
+cover = [c for c in (payload.get("cover") or []) if isinstance(c, str)]
+use_cov = False
+if cover:
+    try:
+        import coverage  # noqa: F401
+        use_cov = True
+    except ImportError:
+        use_cov = False  # tests still run; coverage is simply not measured
+pytest_args = ["-m", "pytest", "-q", "-rA", "--tb=short", "-p", "no:cacheprovider"]
+data_file = str(root / ".coverage")
 try:
-    cmd = [sys.executable, "-m", "pytest", "-q", "-rA", "--tb=short", "-p", "no:cacheprovider"]
+    if use_cov:
+        cmd = [sys.executable, "-m", "coverage", "run", "--data-file=" + data_file,
+               "--include=" + ",".join(cover), "-m", "pytest"] + pytest_args[2:]
+    else:
+        cmd = [sys.executable] + pytest_args
     p = subprocess.run(
         cmd + [payload["target"]], cwd=root, capture_output=True, text=True, timeout=payload["timeout"],
     )
     out = {"code": p.returncode, "stdout": p.stdout[-20000:], "stderr": p.stderr[-4000:],
            "timeout": False}
+    if use_cov:
+        try:
+            out_json = str(root / ".cov.json")
+            subprocess.run(
+                [sys.executable, "-m", "coverage", "json", "--data-file=" + data_file, "-o", out_json, "-q"],
+                cwd=root, capture_output=True, timeout=60,
+            )
+            data = json.loads(pathlib.Path(out_json).read_text(encoding="utf-8"))
+            result = {}
+            for fname, info in data.get("files", {}).items():
+                norm = fname.replace(os.sep, "/")
+                for c in cover:
+                    if norm == c or norm.endswith("/" + c):
+                        result[c] = {"executed": info.get("executed_lines", []),
+                                     "missing": info.get("missing_lines", [])}
+            out["coverage"] = result
+        except Exception as exc:
+            out["coverage_error"] = str(exc)[:200]
 except subprocess.TimeoutExpired:
     out = {"code": -1, "stdout": "", "stderr": "", "timeout": True}
 print("@@RESULT@@" + json.dumps(out))
@@ -88,4 +129,6 @@ def parse_runner_output(stdout: str, stderr: str = "") -> SandboxResult:
         raise SandboxUnavailable("sandbox returned malformed output") from exc
     if "No module named pytest" in data.get("stderr", "") + data.get("stdout", ""):
         raise SandboxUnavailable("pytest is not installed in the sandbox image")
-    return SandboxResult(data["code"], data["stdout"], data["stderr"], bool(data["timeout"]))
+    return SandboxResult(
+        data["code"], data["stdout"], data["stderr"], bool(data["timeout"]), coverage=data.get("coverage")
+    )

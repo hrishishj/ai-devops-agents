@@ -93,7 +93,12 @@ def test_files_travel_over_stdin_not_via_the_filesystem():
     sandbox(run).run_pytest({"src/pkg/a.py": "SECRET_FREE"}, "gen/test_x.py", 45)
     argv, kw = run.calls[0]
     payload = json.loads(kw["input"])
-    assert payload == {"files": {"src/pkg/a.py": "SECRET_FREE"}, "target": "gen/test_x.py", "timeout": 45}
+    assert payload == {
+        "files": {"src/pkg/a.py": "SECRET_FREE"},
+        "target": "gen/test_x.py",
+        "timeout": 45,
+        "cover": [],
+    }
     assert "SECRET_FREE" not in " ".join(argv)  # never on the command line
 
 

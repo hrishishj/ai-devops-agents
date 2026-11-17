@@ -27,3 +27,10 @@ This is container-grade isolation, not VM-grade. Use it for your own repositorie
 workflow). Do not use it for code from strangers, and do not mount the Docker socket into a long-lived service container (for
 example the Compose worker) to give it access: that is effectively host root. Run the agents on the host or an ephemeral runner.
 
+## Addendum: coverage as a quality gate
+A test that passes is not necessarily a test that checks anything (`assert True` passes). The in-sandbox runner now runs pytest under `coverage` (when the
+package is in the image) and reports which lines of the source file executed. The generator computes, per target function, the percentage of its
+*body* statements that ran (the `def` line is ignored: it executes at import). Generated tests are dropped if they never execute any target
+function, or if the average falls below `tests.min_coverage` (default 0 = only the first rule). If the image lacks `coverage`, tests are kept and
+the PR comment says coverage was not measured (a threshold cannot be enforced on something unmeasured). This measures the PR version of one file,
+not repository-wide coverage.

@@ -1,9 +1,8 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
-import tempfile
-from pathlib import Path
 
 import httpx
 import pytest
@@ -24,9 +23,10 @@ from devopsagents.domain.jobs import AgentKind
 from devopsagents.integrations.github.client import PullRequestInfo
 from devopsagents.integrations.sandbox.azure_sessions import AzureSessionsSandbox
 from devopsagents.integrations.sandbox.base import (
-    SandboxResult,
+    STDIN_RUNNER,
     SandboxUnavailable,
     parse_pytest_outcomes,
+    parse_runner_output,
 )
 from devopsagents.integrations.scanners.base import SecretsScanner
 
@@ -63,27 +63,29 @@ def test_wrong_expectation():
 
 
 class LocalTestSandbox:
-    """TEST-ONLY stand-in that runs pytest in a temp dir. The real adapter must be isolated;
-    nothing like this ships in src/."""
+    """TEST-ONLY stand-in. It executes the very runner script that runs inside the real containers (so the
+    runner, including coverage, is genuinely exercised) but locally and without isolation. Nothing like
+    this ships in src/."""
 
     def __init__(self) -> None:
         self.runs: list[list[str]] = []
+        self.covers: list[list[str] | None] = []
 
-    def run_pytest(self, files, target, timeout_seconds=60):
-        with tempfile.TemporaryDirectory() as d:
-            for rel, content in files.items():
-                p = Path(d, rel)
-                p.parent.mkdir(parents=True, exist_ok=True)
-                p.write_text(content, encoding="utf-8")
-            r = subprocess.run(
-                [sys.executable, "-m", "pytest", "-q", "-rA", "--tb=short", "-p", "no:cacheprovider", target],
-                cwd=d,
-                capture_output=True,
-                text=True,
-                timeout=timeout_seconds,
-            )
-            self.runs.append(sorted(parse_pytest_outcomes(r.stdout)))
-            return SandboxResult(r.returncode, r.stdout, r.stderr)
+    def run_pytest(self, files, target, timeout_seconds=60, cover=None):
+        payload = json.dumps(
+            {"files": files, "target": target, "timeout": timeout_seconds, "cover": cover or []}
+        )
+        r = subprocess.run(
+            [sys.executable, "-c", STDIN_RUNNER],
+            input=payload,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds + 60,
+        )
+        result = parse_runner_output(r.stdout, r.stderr)
+        self.runs.append(sorted(parse_pytest_outcomes(result.stdout)))
+        self.covers.append(cover)
+        return result
 
 
 def generator(store, repo_root, replies, sandbox=None):

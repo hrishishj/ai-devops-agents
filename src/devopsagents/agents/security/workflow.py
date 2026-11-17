@@ -175,7 +175,7 @@ class SecurityAgent:
         targets = find_targets(files, changed, tests_text, cfg.max_functions, cfg.max_files)
         if not targets:
             return report
-        report = self._testgen.run(targets, repo, cfg.timeout_seconds)
+        report = self._testgen.run(targets, repo, cfg.timeout_seconds, cfg.min_coverage)
         if report.verified and self._store.is_current(job_id):
             self._gh.post_comment(inst, repo, number, _format_tests_comment(report))
             self._store.audit(
@@ -259,7 +259,12 @@ def _format_tests_comment(report: TestgenReport) -> str:
             "````",
             "</details>",
         ]
+        out.append("")
+        if v.coverage_measured:
+            parts = ", ".join(f"`{n}` {pct:.0f}%" for n, pct in v.coverage.items())
+            out.append(f"_Statements executed in the target functions: {parts}._")
+        else:
+            out.append("_Coverage was not measured (the sandbox image has no `coverage` package)._")
         if v.dropped:
-            out.append("")
             out.append(f"_{v.dropped} generated test(s) failed in the sandbox and were discarded._")
     return "\n".join(out)

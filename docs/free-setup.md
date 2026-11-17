@@ -58,7 +58,8 @@ To use the workflow in **another** repository, copy `ai-review.yml` into it and 
 The security agent can propose pytest tests for changed functions, run them in a locked-down Docker container (no network, read-only,
 non-root, limited memory/CPU) and post only the tests that pass. Off by default.
 1. Set the repository variable `AI_TESTGEN=true` (the workflow then builds the sandbox image on the runner).
-2. Opt the repo in with `.ai-agents.yml`: `tests: {enabled: true}`.
+2. Opt the repo in with `.ai-agents.yml`: `tests: {enabled: true}`. Optionally `min_coverage: 60` to drop tests that exercise less than 60%
+   of the target functions on average; tests that pass without running the target code at all are always dropped.
 Locally: `make sandbox-image`, then `DA_SANDBOX_KIND=docker devopsagents run-pr ...`. This is container-grade isolation: fine for
 your own repositories and ephemeral runners, not for code from strangers (see ADR-0005).
 
