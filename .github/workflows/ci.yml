@@ -32,6 +32,8 @@ jobs:
         run: .venv/bin/lint-imports
       - name: Validate runbooks, policy, prompts
         run: .venv/bin/devopsagents check-config
+      - name: Build sandbox image (enables the real-container isolation tests)
+        run: docker build -t devopsagents-sandbox infra/sandbox
       - name: Tests
         run: .venv/bin/pytest --cov=devopsagents --cov-report=term-missing --cov-fail-under=80
       - name: Offline eval harness
