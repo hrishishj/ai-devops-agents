@@ -4,6 +4,10 @@ WORKDIR /build
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=1
 COPY pyproject.toml README.md ./
 COPY src ./src
+# pyproject force-includes these into the wheel (devopsagents/_data/...), so they must exist at build time.
+COPY prompts ./prompts
+COPY runbooks ./runbooks
+COPY policies ./policies
 RUN pip install --prefix=/install ".[azure]"
 
 FROM python:3.12-slim AS runtime
@@ -25,10 +29,7 @@ COPY --from=build /install /usr/local
 # and makes scanners report CVE-2025-47273 even though setuptools is not installed.
 RUN /opt/semgrep/bin/pip uninstall -y pip \
     && pip uninstall -y pip
-# Runtime data the service reads: prompts, runbook registry, policy (reviewed like code).
-COPY prompts ./prompts
-COPY runbooks ./runbooks
-COPY policies ./policies
+# Prompts, runbooks and policies are bundled in the installed package (devopsagents/_data); no copy needed here.
 USER agents
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
