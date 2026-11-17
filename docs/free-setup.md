@@ -20,9 +20,13 @@ All of these speak the OpenAI chat-completions protocol, so one setting block wo
 | Option | `DA_LLM_BASE_URL` | Key | Notes |
 |---|---|---|---|
 | **Ollama** (local, free, private) | `http://localhost:11434/v1` | none | Best for privacy. Needs a machine with enough RAM/GPU. |
-| **GitHub Models** (free tier) | `https://models.github.ai/inference` | a GitHub token with `models: read` (the Actions `GITHUB_TOKEN` works) | Rate-limited; check its terms before sending private code. Model ids look like `openai/gpt-4.1-mini` - confirm the current list in the GitHub Models catalogue. |
-| Groq (free tier) | `https://api.groq.com/openai/v1` | Groq API key | Fast; rate-limited; hosted. |
-| Gemini (free tier) | `https://generativelanguage.googleapis.com/v1beta/openai` | Google AI key | Free-tier prompts may be used to improve Google products: **do not use for private code**. |
+| **Groq** (free plan) | `https://api.groq.com/openai/v1` | a free Groq API key from console.groq.com | Fast. Model ids such as `llama-3.3-70b-versatile` and `openai/gpt-oss-120b`. Free-plan **tokens-per-minute** caps are tight, so expect some 429s and slower runs; see the Limits page in your console. Check Groq's data terms before sending private code. |
+| OpenRouter (`:free` models) | `https://openrouter.ai/api/v1` | an OpenRouter key | Free models only: 20 requests/min and **50/day** (1,000/day if you ever buy 10+ credits). Fine for a trial, thin for daily use. |
+| Mistral (free "Experiment" plan) | `https://api.mistral.ai/v1` | a Mistral key | Reported to require opting in to **data training** (and possibly phone verification): **do not use for private code**. Check the Limits page in the console. |
+| Gemini (compat endpoint) | `https://generativelanguage.googleapis.com/v1beta/openai` | a Google AI key | Free-tier terms and limits changed in 2026; read the current terms. Free-tier prompts may be used to improve Google products: **do not use for private code**. |
+
+> **GitHub Models was retired on 2026-07-30.** Its catalogue, free inference API and playground no longer exist, and earlier versions of this guide
+> that pointed at `models.github.ai` no longer work. Use one of the options above.
 
 Privacy rule of thumb: for code you would not publish, use **Ollama** (stays on your machine).
 
@@ -43,14 +47,15 @@ In the repository: **Settings -> Secrets and variables -> Actions -> Variables**
 
 | Variable | Example | Required |
 |---|---|---|
-| `AI_LLM_BASE_URL` | `https://models.github.ai/inference` | yes (its presence turns the workflow on) |
-| `AI_LLM_MODEL_LARGE` | `openai/gpt-4.1-mini` | yes |
+| `AI_LLM_BASE_URL` | `https://api.groq.com/openai/v1` | yes (its presence turns the workflow on) |
+| `AI_LLM_MODEL_LARGE` | `llama-3.3-70b-versatile` | yes |
 | `AI_LLM_MODEL_SMALL` | same as above | no |
 | `AI_LLM_JSON_MODE` | `false` if the model rejects `response_format` | no |
 | `AI_CHUNK_TOKENS` | `4000` | no |
 | `AI_AGENTS_SPEC` | `git+https://github.com/hrishishj/ai-devops-agents@<tag-or-sha>` (pin a release for other repos) | no |
 
-Optional secret `AI_LLM_API_KEY` (defaults to `GITHUB_TOKEN`, which is right for GitHub Models only).
+**Secret** `AI_LLM_API_KEY` (Settings -> Secrets and variables -> Actions -> **Secrets** tab, not Variables): your provider key. It is required
+for hosted providers. The workflow never falls back to `GITHUB_TOKEN`, so your GitHub token is never sent to a model provider.
 
 To use the workflow in **another** repository, copy `ai-review.yml` into it and set the same variables.
 

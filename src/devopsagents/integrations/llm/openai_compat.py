@@ -2,11 +2,14 @@
 
 One adapter covers every free option that speaks this protocol:
 
-  Ollama (local)   http://localhost:11434/v1
-  GitHub Models    https://models.github.ai/inference          (key: a GitHub token with models:read)
-  Groq             https://api.groq.com/openai/v1
+  Ollama (local)   http://localhost:11434/v1                   (no key; private)
+  Groq             https://api.groq.com/openai/v1              (free-tier key)
+  OpenRouter       https://openrouter.ai/api/v1                (free ":free" models; low daily cap)
+  Mistral          https://api.mistral.ai/v1                   (free "Experiment" plan)
   Gemini (compat)  https://generativelanguage.googleapis.com/v1beta/openai
   LM Studio        http://localhost:1234/v1
+
+(GitHub Models, https://models.github.ai/inference, was retired on 2026-07-30 and no longer works.)
 """
 
 from __future__ import annotations
