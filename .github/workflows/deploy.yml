@@ -23,6 +23,8 @@ env:
 
 jobs:
   build:
+    # Opt-in: skipped (not failed) until the Azure OIDC variables are configured. See docs/runbooks-ops.
+    if: ${{ vars.AZURE_CLIENT_ID != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
@@ -46,6 +48,7 @@ jobs:
 
   apply:
     needs: build
+    if: ${{ vars.AZURE_CLIENT_ID != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: ${{ github.event.inputs.environment || 'staging' }} # prod requires reviewers
