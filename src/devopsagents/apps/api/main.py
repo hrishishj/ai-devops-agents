@@ -8,7 +8,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
-from devopsagents.apps.api.routes import admin, alerts, github, health
+from devopsagents.apps.api.routes import admin, alerts, github, health, metrics
 from devopsagents.apps.container import Container, build_container
 from devopsagents.core.config.settings import get_settings
 from devopsagents.core.telemetry.tracing import configure_logging
@@ -27,7 +27,7 @@ def create_app(container: Container | None = None) -> FastAPI:
     )  # no public docs surface; CORS intentionally off
     if container is not None:
         app.state.container = container
-    for r in (github.router, alerts.router, admin.router, health.router):
+    for r in (github.router, alerts.router, admin.router, health.router, metrics.router):
         app.include_router(r)
     return app
 

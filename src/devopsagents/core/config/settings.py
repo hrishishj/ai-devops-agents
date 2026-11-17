@@ -54,6 +54,7 @@ class Settings(BaseSettings):
 
     # Admin / alert ingress auth (shared secrets; front with Entra/APIM in prod)
     admin_token: SecretStr = SecretStr("")
+    metrics_token: SecretStr = SecretStr("")  # /metrics is disabled (404) until this is set
     # "token": shared secret, self-declared approver (dev/pilot). "easyauth": validated Entra principal
     # injected by Container Apps Easy Auth / APIM (production; ingress must be reachable only via it).
     # "github": approvers send their own GitHub token; GitHub verifies identity and write access (free).

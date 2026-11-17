@@ -1,0 +1,54 @@
+{
+  "uid": "devopsagents",
+  "title": "AI DevOps Agents",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "Jobs by status",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "sum by (status) (devopsagents_jobs)", "legendFormat": "{{status}}" }
+      ]
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Oldest waiting job (seconds)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "devopsagents_oldest_queued_job_age_seconds", "legendFormat": "{{agent}}" }
+      ]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Agent actions (audit events / 5m)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "sum by (event) (increase(devopsagents_audit_events_total[5m]))", "legendFormat": "{{event}}" }
+      ]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "LLM tokens used today",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "refId": "A", "expr": "devopsagents_llm_tokens_today", "legendFormat": "{{scope}}" }
+      ]
+    },
+    {
+      "id": 5, "type": "stat", "title": "Dead jobs",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "sum(devopsagents_jobs{status=\"dead\"})" } ]
+    },
+    {
+      "id": 6, "type": "stat", "title": "Kill switch",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "devopsagents_kill_switch" } ]
+    }
+  ]
+}
