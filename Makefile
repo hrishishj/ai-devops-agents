@@ -26,7 +26,7 @@ image:
 	docker build -f infra/container/Dockerfile -t devopsagents:dev .
 
 tf-validate:
-	terraform -chdir=infra/terraform init -backend=false && terraform -chdir=infra/terraform validate
+	terraform -chdir=optional/azure/terraform init -backend=false && terraform -chdir=optional/azure/terraform validate
 
 up:
 	docker compose up -d --build

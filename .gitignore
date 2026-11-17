@@ -36,12 +36,12 @@ dmypy.json
 .ruff_cache/
 
 # Terraform
-infra/terraform/.terraform/
-infra/terraform/.terraform.lock.hcl
-infra/terraform/terraform.tfstate
-infra/terraform/terraform.tfstate.backup
-infra/terraform/*.tfvars
-!infra/terraform/terraform.tfvars.example
+optional/azure/terraform/.terraform/
+optional/azure/terraform/.terraform.lock.hcl
+optional/azure/terraform/terraform.tfstate
+optional/azure/terraform/terraform.tfstate.backup
+optional/azure/terraform/*.tfvars
+!optional/azure/terraform/terraform.tfvars.example
 
 # Docker
 *.tar
@@ -67,8 +67,8 @@ Thumbs.db
 
 # Project
 *.db
-infra/terraform/.terraform/
-infra/terraform/*.tfstate*
-infra/terraform/envs/*.backend.hcl
-infra/terraform/terraform.tfvars
+optional/azure/terraform/.terraform/
+optional/azure/terraform/*.tfstate*
+optional/azure/terraform/envs/*.backend.hcl
+optional/azure/terraform/terraform.tfvars
 .ruff_cache/

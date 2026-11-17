@@ -40,6 +40,7 @@ jobs:
         run: .venv/bin/python -m evals.run_evals --offline
 
   terraform:
+    # Optional Azure path (optional/azure): kept valid, but nothing else depends on it.
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -47,9 +48,9 @@ jobs:
       - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
         with:
           terraform_version: 1.9.8
-      - run: terraform -chdir=infra/terraform fmt -check -recursive
-      - run: terraform -chdir=infra/terraform init -backend=false
-      - run: terraform -chdir=infra/terraform validate
+      - run: terraform -chdir=optional/azure/terraform fmt -check -recursive
+      - run: terraform -chdir=optional/azure/terraform init -backend=false
+      - run: terraform -chdir=optional/azure/terraform validate
 
   image:
     runs-on: ubuntu-latest
