@@ -62,6 +62,9 @@ export DA_LLM_BASE_URL=http://localhost:11434/v1 DA_LLM_MODEL_LARGE=qwen2.5-code
 devopsagents run-pr --repo owner/name --pr 42      # shadow mode: prints what it would post
 ```
 
+Prefer an always-on local stack (Ollama + PostgreSQL + API + worker)? `docker compose up -d --build` - see
+[docs/local-docker.md](docs/local-docker.md).
+
 Or enable `.github/workflows/ai-review.yml` by setting the `AI_LLM_BASE_URL` repository variable (details and model choices in
 [docs/free-setup.md](docs/free-setup.md)). Nothing is posted to a PR until the repo opts in with `review: {mode: comment}`.
 

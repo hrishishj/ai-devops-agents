@@ -1,4 +1,4 @@
-.PHONY: dev test lint types arch check eval image tf-validate
+.PHONY: dev test lint types arch check eval image tf-validate up down logs compose-check
 
 dev:
 	uv venv --python 3.12 && uv pip install -e ".[dev]"
@@ -27,3 +27,15 @@ image:
 
 tf-validate:
 	terraform -chdir=infra/terraform init -backend=false && terraform -chdir=infra/terraform validate
+
+up:
+	docker compose up -d --build
+
+down:
+	docker compose down
+
+logs:
+	docker compose logs -f worker api
+
+compose-check:
+	docker compose config -q

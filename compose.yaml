@@ -1,0 +1,131 @@
+# Run the whole stack on your own machine with free software only:
+#   Ollama (local LLM) + PostgreSQL + the API + a worker (+ optional webhook tunnel).
+#
+#   cp .env.example .env        # then edit the DA_* values you need
+#   docker compose up -d --build
+#   docker compose logs -f worker
+#
+# Everything binds to 127.0.0.1; nothing is exposed to your network. See docs/local-docker.md.
+
+name: devopsagents
+
+x-app: &app
+  build:
+    context: .
+    dockerfile: infra/container/Dockerfile
+  image: devopsagents:local
+  restart: unless-stopped
+  environment: &app-env
+    DA_ENVIRONMENT: local
+    DA_DATABASE_URL: postgresql+psycopg://devopsagents:${POSTGRES_PASSWORD:-devopsagents}@postgres:5432/devopsagents
+    DA_CREATE_SCHEMA: "false" # schema is managed by the migrate service
+    # LLM: Ollama in this stack by default. COMPOSE_LLM_BASE_URL exists because a localhost URL from .env
+    # would be wrong inside a container.
+    DA_LLM_PROVIDER: openai_compat
+    DA_LLM_BASE_URL: ${COMPOSE_LLM_BASE_URL:-http://ollama:11434/v1}
+    DA_LLM_API_KEY: ${DA_LLM_API_KEY:-}
+    DA_LLM_MODEL_LARGE: ${DA_LLM_MODEL_LARGE:-qwen2.5-coder:7b}
+    DA_LLM_MODEL_SMALL: ${DA_LLM_MODEL_SMALL:-qwen2.5-coder:7b}
+    DA_LLM_JSON_MODE: ${DA_LLM_JSON_MODE:-true}
+    DA_REVIEW_CHUNK_TOKENS: ${DA_REVIEW_CHUNK_TOKENS:-4000}
+    # GitHub: a token works without a GitHub App. Empty values make the endpoints reject everything.
+    DA_GITHUB_TOKEN: ${DA_GITHUB_TOKEN:-}
+    DA_GITHUB_WEBHOOK_SECRET: ${DA_GITHUB_WEBHOOK_SECRET:-}
+    DA_ALERT_TOKEN: ${DA_ALERT_TOKEN:-}
+    DA_ADMIN_TOKEN: ${DA_ADMIN_TOKEN:-}
+    DA_KILL_SWITCH: ${DA_KILL_SWITCH:-false}
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    environment:
+      # Ollama's default context window is small and silently truncates long prompts.
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-16384}
+    volumes:
+      - ollama:/root/.ollama
+    ports: ["127.0.0.1:11434:11434"]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    # NVIDIA GPU (optional): uncomment, and install the NVIDIA container toolkit.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices: [{ driver: nvidia, count: all, capabilities: [gpu] }]
+
+  # One-shot: downloads the model into the ollama volume the first time (several GB), then exits.
+  ollama-pull:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama: { condition: service_healthy }
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["ollama pull ${DA_LLM_MODEL_LARGE:-qwen2.5-coder:7b}"]
+    restart: "no"
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: devopsagents
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devopsagents}
+      POSTGRES_DB: devopsagents
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U devopsagents -d devopsagents"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    # Not published to the host on purpose; only the other services can reach it.
+
+  migrate:
+    <<: *app
+    restart: "no"
+    command: ["devopsagents", "migrate"]
+    healthcheck: { disable: true }
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    <<: *app
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  worker:
+    <<: *app
+    command: ["devopsagents", "worker"] # handles review, security and incident jobs
+    healthcheck: { disable: true } # the image healthcheck probes the API port
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      ollama-pull: { condition: service_completed_successfully }
+
+  # Optional: forwards GitHub webhooks from a free smee.io channel to the local API (no inbound ports).
+  #   docker compose --profile webhooks up -d
+  # Create a channel at https://smee.io, put its URL in SMEE_URL, and add it as the repo webhook URL
+  # (content type application/json, secret = DA_GITHUB_WEBHOOK_SECRET, event: Pull requests).
+  # Privacy: smee.io is a public relay; payloads pass through it. Use a tunnel you trust for private repos.
+  smee:
+    profiles: ["webhooks"]
+    image: node:22-alpine
+    restart: unless-stopped
+    command:
+      - sh
+      - -c
+      - >-
+        [ -n "$$SMEE_URL" ] || { echo "Set SMEE_URL to your smee.io channel URL"; exit 1; };
+        npx --yes smee-client@3 --url "$$SMEE_URL" --target http://api:8000/webhooks/github
+    environment:
+      SMEE_URL: ${SMEE_URL:-}
+    depends_on: [api]
+
+volumes:
+  ollama:
+  pgdata:
