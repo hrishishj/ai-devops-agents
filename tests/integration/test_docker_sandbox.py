@@ -87,3 +87,15 @@ def test_runs_as_a_non_root_user_with_no_host_secrets(monkeypatch):
 def test_a_hanging_test_is_stopped():
     r = run("import time\n\ndef test_hang():\n    time.sleep(60)\n", timeout=3)
     assert r.timed_out
+
+
+def test_coverage_is_measured_inside_the_isolated_container():
+    source = "def f(x):\n    if x:\n        return 1\n    return 2\n"
+    test = "from m import f\n\n\ndef test_f():\n    assert f(True) == 1\n"
+    conftest = "import pathlib, sys\nsys.path.insert(0, str(pathlib.Path(__file__).parent))\n"
+    files = {"m.py": source, "t/test_x.py": test, "conftest.py": conftest}
+    r = DockerSandbox(IMAGE).run_pytest(files, "t/test_x.py", 60, cover=["m.py"])
+    assert outcomes(r) == {"test_f": "PASSED"}
+    assert r.coverage is not None, "the image must include the coverage package"
+    assert 4 in r.coverage["m.py"]["missing"]  # `return 2` was never executed
+    assert {1, 2, 3} <= set(r.coverage["m.py"]["executed"])

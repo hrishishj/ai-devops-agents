@@ -124,7 +124,9 @@ Automation runbook it names, run `devopsagents check-config`, and list it in `pr
 - **Test generation** is opt-in (`tests: {enabled: true}` in `.ai-agents.yml`). The free sandbox is Docker (`DA_SANDBOX_KIND=docker`:
   no network, read-only, non-root, resource-limited; container-grade isolation, so use it for your own repos and ephemeral runners
   only). Azure session pools are the other adapter (contract-tested with a mock only). Tests are verified against the PR version of a
-  single file, so modules that import other repo code will not verify; real coverage is not measured.
+  single file, so modules that import other repo code will not verify. Statement coverage of the target functions is measured in
+  the sandbox (needs the `coverage` package in the image): tests that pass without executing the target code are dropped, and
+  `tests.min_coverage` can require more. "Untested" still means the name is absent from the PR's own tests, not repo-wide coverage.
 - **Recovery verification** uses the Azure Monitor alert state (`AlertStateVerifier`, enabled when `DA_AUTOMATION_ACCOUNT_URL` is set);
   anything it cannot determine escalates to a human. Rollback is suggested in the ticket, not executed automatically.
 - **Approver identity**: `DA_ADMIN_AUTH=github` verifies the approver with their own GitHub token (free; write access to the
