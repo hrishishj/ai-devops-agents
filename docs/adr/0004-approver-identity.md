@@ -16,3 +16,6 @@ identities. Optionally require a second approver for tier-2 runbooks in prod.
 - **Deployment requirement:** these headers are only trustworthy if the app is reachable exclusively through Easy Auth / APIM. Exclude `/webhooks/*` and `/health*` from Entra auth (GitHub and Azure Monitor use their own HMAC/token); protect `/admin/*`.
 - `token` mode remains for dev/pilot and is the Terraform default until Easy Auth is configured.
 - Not yet done: two-person approval for tier-2 runbooks, approval expiry.
+- **GitHub mode (free):** `DA_ADMIN_AUTH=github` takes the approver's own GitHub token, resolves their login with `GET /user`, and
+  requires push access to the approver repo via `GET /repos/{repo}` (plus an optional `DA_APPROVERS` allow-list). Tokens are only sent to
+  GitHub and cached in memory by hash for 60s. No identity provider or hosting is needed.

@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from fastapi import HTTPException, Request
 
 from devopsagents.core.config.settings import Settings
+from devopsagents.integrations.github.identity import GitHubIdentityVerifier
 
 
 def require_token(request: Request, secret: str, header: str) -> None:
@@ -44,12 +45,52 @@ def _principal_from_easyauth(request: Request) -> Principal | None:
     return Principal(name=name, roles=frozenset(roles)) if name else None
 
 
+def require_alert_token(request: Request, secret: str) -> None:
+    """Alert sources authenticate with `X-Alert-Token` or a standard `Authorization: Bearer` header
+    (what Alertmanager's http_config.authorization sends). Constant-time; fails closed."""
+    given = request.headers.get("x-alert-token", "")
+    if not given:
+        auth = request.headers.get("authorization", "")
+        given = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    if not secret or not hmac.compare_digest(given.encode(), secret.encode()):
+        raise HTTPException(status_code=401, detail="unauthorized")
+
+
+_default_verifiers: dict[str, GitHubIdentityVerifier] = {}
+
+
+def _github_principal(request: Request, settings: Settings) -> Principal:
+    """The approver sends their own GitHub token; GitHub tells us who they are and whether they
+    can push to the approver repo. Free, and no identity provider to run."""
+    auth = request.headers.get("authorization", "")
+    token = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    if not token:
+        raise HTTPException(status_code=401, detail="unauthorized")
+    repo = settings.approver_repo or settings.incident_repo
+    if not repo:
+        raise HTTPException(status_code=503, detail="approver repo is not configured")
+    verifier = getattr(request.app.state, "identity_verifier", None)
+    if verifier is None:
+        verifier = _default_verifiers.setdefault(
+            settings.github_api_url, GitHubIdentityVerifier(settings.github_api_url)
+        )
+    ident = verifier.verify(token, repo)
+    if ident is None:
+        raise HTTPException(status_code=401, detail="unauthorized")
+    allow = {x.strip().lower() for x in settings.approvers.split(",") if x.strip()}
+    if not ident.can_write or (allow and ident.login.lower() not in allow):
+        raise HTTPException(status_code=403, detail="not an approver")
+    return Principal(name=ident.login, roles=frozenset({settings.approver_role}))
+
+
 def authenticate_admin(request: Request, settings: Settings, *, role: str | None = None) -> Principal | None:
-    """Admin auth. `token` mode -> shared secret (returns None, identity is unverified).
-    `easyauth` mode -> validated Entra principal, optionally requiring an app role."""
+    """Admin auth. `token` -> shared secret (identity unverified). `easyauth` -> Entra principal from
+    Easy Auth/APIM. `github` -> the caller's GitHub token, verified against GitHub."""
     if settings.admin_auth == "token":
         require_token(request, settings.admin_token.get_secret_value(), "x-admin-token")
         return None
+    if settings.admin_auth == "github":
+        return _github_principal(request, settings)
     principal = _principal_from_easyauth(request)
     if principal is None:
         raise HTTPException(status_code=401, detail="unauthorized")

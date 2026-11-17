@@ -25,6 +25,11 @@ from devopsagents.integrations.azure.alert_state import AlertStateVerifier
 from devopsagents.integrations.azure.automation import AutomationPort
 from devopsagents.integrations.azure.evidence import Evidence, EvidenceSource, Verifier
 from devopsagents.integrations.github.client import GitHubClient
+from devopsagents.integrations.prometheus.client import (
+    PrometheusClient,
+    PrometheusEvidence,
+    PrometheusVerifier,
+)
 from devopsagents.integrations.scanners.base import SecretsScanner, SemgrepScanner
 
 log = logging.getLogger(__name__)
@@ -187,17 +192,30 @@ def build_container(
         else LogNotifier()
     )
     automation: AutomationPort = NoAutomation()
-    if settings.automation_account_url:
+    if settings.runbook_repo and github is not None:  # free path: run runbooks as GitHub Actions workflows
+        from devopsagents.integrations.github.automation import GitHubActionsAutomation
+
+        automation = GitHubActionsAutomation(
+            github, settings.runbook_repo, settings.runbook_workflow, settings.runbook_ref
+        )
+    elif settings.automation_account_url:
         from devopsagents.integrations.azure.automation import AutomationClient
 
         automation = AutomationClient(settings.automation_account_url)
     evidence: EvidenceSource = NullEvidence()
-    if settings.log_analytics_workspace_id:
+    prom: PrometheusClient | None = None
+    if settings.prometheus_url:
+        prom = PrometheusClient(settings.prometheus_url, token=settings.prometheus_token.get_secret_value())
+    if prom is not None:
+        evidence = PrometheusEvidence(prom)
+    elif settings.log_analytics_workspace_id:
         from devopsagents.integrations.azure.evidence import LogAnalyticsEvidence
 
         evidence = LogAnalyticsEvidence(settings.log_analytics_workspace_id)
     verifier: Verifier = NullVerifier()
-    if settings.automation_account_url:
+    if prom is not None:
+        verifier = PrometheusVerifier(prom)
+    elif settings.automation_account_url:
         verifier = AlertStateVerifier()
     handlers[AgentKind.INCIDENT] = IncidentAgent(
         gateway,
