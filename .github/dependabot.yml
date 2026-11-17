@@ -1,19 +1,48 @@
+# Dependency updates, tuned to produce few, reviewable pull requests.
+# Major-version bumps of the Python base image, the azurerm provider and Python packages are ignored on
+# purpose: they need a deliberate upgrade on a branch (these once broke CI: Semgrep has no wheels for the
+# newest Python, and azurerm 5 is a breaking provider upgrade). Remove an `ignore` entry to upgrade.
 version: 2
 updates:
   - package-ecosystem: pip
     directory: /
     schedule: { interval: weekly }
+    open-pull-requests-limit: 3
     groups:
-      python-minor: { update-types: [minor, patch] }
+      python:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
+    open-pull-requests-limit: 2
+    groups:
+      actions: # one weekly pull request for every action update (SHA pins are kept)
+        patterns: ["*"]
+
   - package-ecosystem: docker
     directory: /infra/container
     schedule: { interval: weekly }
+    open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+
   - package-ecosystem: docker
     directory: /infra/sandbox
     schedule: { interval: weekly }
+    open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+
   - package-ecosystem: terraform
-    directory: /infra/terraform
-    schedule: { interval: weekly }
+    directory: /optional/azure/terraform
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
