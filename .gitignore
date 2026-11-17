@@ -64,3 +64,11 @@ Thumbs.db
 *.p12
 *.pfx
 *.crt
+
+# Project
+*.db
+infra/terraform/.terraform/
+infra/terraform/*.tfstate*
+infra/terraform/envs/*.backend.hcl
+infra/terraform/terraform.tfvars
+.ruff_cache/
