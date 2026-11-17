@@ -16,7 +16,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import Float, Integer, String, Text, create_engine, select, update
+from sqlalchemy import Float, Integer, String, Text, create_engine, func, select, update
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
@@ -273,6 +273,42 @@ class JobStore:
     def dead_letter_count(self) -> int:
         with self._sessions() as s:
             return len(list(s.scalars(select(JobRow.id).where(JobRow.status == "dead"))))
+
+    def metrics_snapshot(self, max_scopes: int = 10) -> dict[str, Any]:
+        """Aggregates for /metrics, read from the database so the API sees every worker's activity."""
+        now = self._clock()
+        open_states = [JobStatus.QUEUED.value, JobStatus.FAILED.value]
+        with self._sessions() as s:
+            jobs = {
+                (a, st): int(n)
+                for a, st, n in s.execute(
+                    select(JobRow.agent, JobRow.status, func.count()).group_by(JobRow.agent, JobRow.status)
+                )
+            }
+            oldest = {
+                a: max(0.0, now - float(ts))
+                for a, ts in s.execute(
+                    select(JobRow.agent, func.min(JobRow.created_at))
+                    .where(JobRow.status.in_(open_states))
+                    .group_by(JobRow.agent)
+                )
+            }
+            audit = {
+                str(ev): int(n)
+                for ev, n in s.execute(select(AuditRow.event, func.count()).group_by(AuditRow.event))
+            }
+            total = func.sum(UsageRow.tokens)
+            tokens = {
+                str(scope): int(n or 0)
+                for scope, n in s.execute(
+                    select(UsageRow.scope, total)
+                    .where(UsageRow.day == self._day())
+                    .group_by(UsageRow.scope)
+                    .order_by(total.desc())
+                    .limit(max_scopes + 1)  # +1: "global" is always included in the ledger
+                )
+            }
+        return {"jobs": jobs, "oldest_queued_age": oldest, "audit": audit, "tokens_today": tokens}
 
     # ---- audit / usage ------------------------------------------------------------------
     def audit(self, actor: str, event: str, subject: str, data: dict[str, object] | None = None) -> None:

@@ -45,6 +45,14 @@ def _principal_from_easyauth(request: Request) -> Principal | None:
     return Principal(name=name, roles=frozenset(roles)) if name else None
 
 
+def require_bearer(request: Request, secret: str) -> None:
+    """`Authorization: Bearer <secret>` only. Constant-time; fails closed when no secret is configured."""
+    auth = request.headers.get("authorization", "")
+    given = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    if not secret or not hmac.compare_digest(given.encode(), secret.encode()):
+        raise HTTPException(status_code=401, detail="unauthorized")
+
+
 def require_alert_token(request: Request, secret: str) -> None:
     """Alert sources authenticate with `X-Alert-Token` or a standard `Authorization: Bearer` header
     (what Alertmanager's http_config.authorization sends). Constant-time; fails closed."""
