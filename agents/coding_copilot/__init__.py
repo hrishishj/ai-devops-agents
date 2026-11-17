@@ -1,1 +1,0 @@
-"""Coding Co-Pilot Agent."""
