@@ -69,7 +69,7 @@ def main(argv: list[str] | None = None) -> int:
     r = sub.add_parser("review", help="enqueue a review+security run for an existing PR")
     r.add_argument("--repo", required=True)
     r.add_argument("--pr", type=int, required=True)
-    r.add_argument("--installation", type=int, required=True)
+    r.add_argument("--installation", type=int, default=0, help="GitHub App installation id (0 = token mode)")
     args = p.parse_args(argv)
 
     if args.cmd == "check-config":
