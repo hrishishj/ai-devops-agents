@@ -14,7 +14,7 @@ identities. Optionally require a second approver for tier-2 runbooks in prod.
 ## Implementation notes
 - `easyauth` mode reads the validated principal from `X-MS-CLIENT-PRINCIPAL(-NAME)`, requires the `Incident.Approver` app role, and ignores any body-supplied approver. Audit entries record `verified_identity: true`.
 - **Deployment requirement:** these headers are only trustworthy if the app is reachable exclusively through Easy Auth / APIM. Exclude `/webhooks/*` and `/health*` from Entra auth (GitHub and Azure Monitor use their own HMAC/token); protect `/admin/*`.
-- `token` mode remains for dev/pilot and is the Terraform default until Easy Auth is configured.
+- `token` mode remains for dev/pilot and is the default until Easy Auth (or GitHub mode) is configured.
 - Not yet done: two-person approval for tier-2 runbooks, approval expiry.
 - **GitHub mode (free):** `DA_ADMIN_AUTH=github` takes the approver's own GitHub token, resolves their login with `GET /user`, and
   requires push access to the approver repo via `GET /repos/{repo}` (plus an optional `DA_APPROVERS` allow-list). Tokens are only sent to
