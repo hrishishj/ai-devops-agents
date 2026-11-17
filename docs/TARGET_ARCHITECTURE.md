@@ -10,7 +10,7 @@ Status: **partially implemented** (see below) · Scope: clean-slate design; the 
 | Phase 1 LLM platform (gateway, redaction, budgets, cache, prompt registry, eval harness) | built |
 | Phase 2–3 review agent (chunking, grounding, ranking, shadow/comment modes) | built |
 | Phase 4 security agent (secrets + Semgrep scanners, LLM triage, Check Run) | built, including opt-in verified test generation via an isolated sandbox (adapter contract-tested only) |
-| Phase 5–6 incident agent (evidence port, policy engine, runbook registry, approvals, audit) | built; **real recovery verifier and rollback execution not built** |
+| Phase 5–6 incident agent (evidence port, policy engine, runbook registry, approvals, audit) | built; recovery verifier, expiring approvals, two-person rule and opt-in rollback built |
 | Phase 7 hardening (private networking, Entra approvers, Alembic, load/DR tests) | not started |
 
 Deviations from this document: queues do not use Service Bus sessions ([ADR-0003](adr/0003-db-lease-not-sessions.md));
