@@ -24,7 +24,7 @@ from devopsagents.core.llm.gateway import LLMBackend, LLMGateway, ModelTier
 from devopsagents.core.prompts.registry import PromptRegistry
 from devopsagents.domain.events import AlertEvent
 from devopsagents.domain.jobs import AgentKind
-from devopsagents.integrations.github.client import PullRequestInfo, ReviewComment
+from devopsagents.integrations.github.client import PullRequestInfo, ReviewComment, ReviewThread
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = Path(__file__).resolve().parent / "datasets"
@@ -44,6 +44,12 @@ class _ShadowGitHub:
 
     def get_file(self, inst: int, repo: str, path: str, ref: str) -> str | None:
         return "review:\n  mode: shadow\n  min_confidence: 0.6\n"
+
+    def review_threads(self, inst: int, repo: str, number: int) -> tuple[str, list[ReviewThread]]:
+        return "", []
+
+    def resolve_review_thread(self, inst: int, thread_id: str) -> None:  # pragma: no cover
+        raise AssertionError("evals must never change a pull request")
 
     def post_review(
         self, inst: int, repo: str, number: int, commit_sha: str, body: str, comments: list[ReviewComment]

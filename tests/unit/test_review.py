@@ -39,6 +39,11 @@ class FakeGH:
     def __init__(self, cfg: str | None = "review:\n  mode: comment\n", head="sha1", diff=DIFF):
         self.cfg, self.head, self.diff = cfg, head, diff
         self.posted: list[tuple] = []
+        self.threads: list = []
+        self.viewer = "da-bot"
+        self.resolved: list[str] = []
+        self.threads_error: Exception | None = None
+        self.resolve_error: Exception | None = None
 
     def get_pr(self, inst, repo, number):
         return PullRequestInfo(repo, number, "Fix query", "body", self.head, "base")
@@ -52,6 +57,16 @@ class FakeGH:
     def post_review(self, inst, repo, number, commit_sha, body, comments):
         self.posted.append((commit_sha, body, comments))
         return 42
+
+    def review_threads(self, inst, repo, number):
+        if self.threads_error:
+            raise self.threads_error
+        return self.viewer, self.threads
+
+    def resolve_review_thread(self, inst, thread_id):
+        if self.resolve_error:
+            raise self.resolve_error
+        self.resolved.append(thread_id)
 
 
 def cand(**kw):
