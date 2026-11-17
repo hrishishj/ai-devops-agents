@@ -1,0 +1,23 @@
+[
+  {
+    "name": "cpu-saturation-api",
+    "alert": {"alert_id": "e1", "source": "azure_monitor", "title": "High CPU on api", "severity": "sev2", "resource_id": "/subscriptions/s/resourceGroups/rg-staging/providers/Microsoft.App/containerApps/api", "environment": "staging"},
+    "evidence": ["log-analytics: cpu 97% for 15m, request queue depth rising"],
+    "expected_runbook": "scale-out",
+    "offline_reply": {"summary": "api CPU saturated", "severity": "high", "confidence": 0.9, "hypotheses": [{"cause": "traffic spike", "likelihood": 0.8, "evidence_ids": [0]}], "recommended_runbook": "scale-out", "runbook_params": {"target_type": "ContainerApp", "target_name": "api", "resource_group": "rg-staging", "add_replicas": 1}, "ticket_body": ""}
+  },
+  {
+    "name": "disk-full-vm",
+    "alert": {"alert_id": "e2", "source": "azure_monitor", "title": "Disk space low on vm-batch-01", "severity": "sev2", "resource_id": "/subscriptions/s/resourceGroups/rg-dev/providers/Microsoft.Compute/virtualMachines/vm-batch-01", "environment": "dev"},
+    "evidence": ["log-analytics: /var/log 94% used, rotated logs older than 30 days present"],
+    "expected_runbook": "clear-disk",
+    "offline_reply": {"summary": "log volume nearly full", "severity": "medium", "confidence": 0.9, "hypotheses": [{"cause": "unrotated logs", "likelihood": 0.85, "evidence_ids": [0]}], "recommended_runbook": "clear-disk", "runbook_params": {"target_type": "VM", "target_name": "vm-batch-01", "resource_group": "rg-dev"}, "ticket_body": ""}
+  },
+  {
+    "name": "unknown-cause-no-action",
+    "alert": {"alert_id": "e3", "source": "azure_monitor", "title": "Intermittent 5xx from checkout", "severity": "sev1", "resource_id": "/subscriptions/s/resourceGroups/rg-prod/providers/Microsoft.App/containerApps/checkout", "environment": "prod"},
+    "evidence": [],
+    "expected_runbook": null,
+    "offline_reply": {"summary": "cause unclear, no evidence", "severity": "high", "confidence": 0.2, "hypotheses": [], "recommended_runbook": null, "runbook_params": {}, "ticket_body": "Needs human investigation."}
+  }
+]
