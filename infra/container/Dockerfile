@@ -1,12 +1,12 @@
 # One image, three entrypoints: api | worker | cli  (selected by the command)
-FROM python:3.12-slim AS build
+FROM python:3.15-slim AS build
 WORKDIR /build
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_NO_CACHE_DIR=1
 COPY pyproject.toml README.md ./
 COPY src ./src
 RUN pip install --prefix=/install ".[azure]"
 
-FROM python:3.12-slim AS runtime
+FROM python:3.15-slim AS runtime
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 # Apply Debian security updates (the base image lags, e.g. zlib1g fixes).
 RUN apt-get update \
