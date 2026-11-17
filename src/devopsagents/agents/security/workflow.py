@@ -12,13 +12,14 @@ from typing import Any, Protocol
 from pydantic import BaseModel, Field
 
 from devopsagents.agents.review.chunking import is_ignored
-from devopsagents.core.config.repo_config import parse_repo_config
+from devopsagents.agents.security.testgen import TestGenerator, TestgenReport, find_targets
+from devopsagents.core.config.repo_config import TestsConfig, parse_repo_config
 from devopsagents.core.jobs.runner import NonRetryableError
 from devopsagents.core.jobs.store import JobStore
 from devopsagents.core.llm.gateway import LLMGateway, ModelTier
 from devopsagents.core.prompts.registry import PromptRegistry
 from devopsagents.core.telemetry.tracing import span
-from devopsagents.domain.diff import parse_unified_diff
+from devopsagents.domain.diff import FileDiff, parse_unified_diff
 from devopsagents.domain.findings import Severity
 from devopsagents.domain.jobs import Job
 from devopsagents.integrations.github.client import PullRequestInfo
@@ -34,6 +35,8 @@ _ICON = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🔵", "i
 
 class GitHubPort(Protocol):
     def get_pr(self, inst: int, repo: str, number: int) -> PullRequestInfo: ...
+
+    def post_comment(self, inst: int, repo: str, number: int, body: str) -> None: ...
     def get_diff(self, inst: int, repo: str, number: int) -> str: ...
     def get_file(self, inst: int, repo: str, path: str, ref: str) -> str | None: ...
     def create_check_run(
@@ -70,10 +73,12 @@ class SecurityAgent:
         scanners: list[Scanner],
         *,
         kill_switch: bool = False,
+        testgen: TestGenerator | None = None,
     ) -> None:
         self._gh, self._llm, self._prompts, self._store = github, gateway, prompts, store
         self._scanners = {s.name: s for s in scanners}
         self._kill = kill_switch
+        self._testgen = testgen
 
     def handle(self, job: Job) -> dict[str, Any]:
         p = job.payload
@@ -137,14 +142,49 @@ class SecurityAgent:
                 f"{repo}#{number}",
                 {"findings": len(triaged), "conclusion": conclusion, "scanners": ran},
             )
+            tg = self._generate_tests(inst, repo, number, cfg.tests, files, changed, diffs, job.id)
             return {
                 "status": "reported",
                 "conclusion": conclusion,
                 "findings": len(triaged),
                 "scanners": ran,
+                "tests_verified": sum(len(v.test_names) for v in tg.verified),
+                "tests_notes": tg.notes,
                 "files_scanned": len(files),
                 "agent_version": AGENT_VERSION,
             }
+
+    def _generate_tests(
+        self,
+        inst: int,
+        repo: str,
+        number: int,
+        cfg: TestsConfig,
+        files: dict[str, str],
+        changed: dict[str, set[int]],
+        diffs: list[FileDiff],
+        job_id: str,
+    ) -> TestgenReport:
+        report = TestgenReport()
+        if self._testgen is None or not cfg.enabled:
+            return report
+        if not self._store.is_current(job_id):
+            return report
+        # "already tested" heuristic: a function name mentioned in tests this PR touches
+        tests_text = "\n".join("\n".join(f.added_lines.values()) for f in diffs if "test" in f.path.lower())
+        targets = find_targets(files, changed, tests_text, cfg.max_functions, cfg.max_files)
+        if not targets:
+            return report
+        report = self._testgen.run(targets, repo, cfg.timeout_seconds)
+        if report.verified and self._store.is_current(job_id):
+            self._gh.post_comment(inst, repo, number, _format_tests_comment(report))
+            self._store.audit(
+                "security",
+                "security.tests_posted",
+                f"{repo}#{number}",
+                {"tests": sum(len(v.test_names) for v in report.verified)},
+            )
+        return report
 
     def _triage(self, raw: list[RawFinding], repo: str) -> list[tuple[RawFinding, str, str]]:
         if not raw:
@@ -199,3 +239,27 @@ def _summary(items: list[tuple[RawFinding, str, str]], ran: list[str], n_files: 
         for f, _, _ in items[:50]
     ]
     return head + "\n\n" + "\n".join(rows)
+
+
+def _format_tests_comment(report: TestgenReport) -> str:
+    out = [
+        "## 🧪 Verified tests",
+        "",
+        "These tests passed in an isolated sandbox against this PR's version of each file. "
+        "Review them before adding to the repo.",
+    ]
+    for v in report.verified:
+        names = ", ".join(f"`{n}`" for n in v.test_names)
+        out += [
+            "",
+            f"<details><summary><code>{v.path}</code> - {len(v.test_names)} test(s): {names}</summary>",
+            "",
+            "````python",
+            v.code.rstrip(),
+            "````",
+            "</details>",
+        ]
+        if v.dropped:
+            out.append("")
+            out.append(f"_{v.dropped} generated test(s) failed in the sandbox and were discarded._")
+    return "\n".join(out)

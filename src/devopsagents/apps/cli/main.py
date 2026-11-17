@@ -18,7 +18,13 @@ def _check_config(base: Path) -> int:
     reg = RunbookRegistry.load(base / s.runbooks_dir)
     PolicyConfig.load(base / s.policy_file)
     prompts = PromptRegistry(base / s.prompts_dir)
-    for agent, name in (("review", "discover"), ("security", "triage"), ("incident", "analyse")):
+    required = (
+        ("review", "discover"),
+        ("security", "triage"),
+        ("security", "testgen"),
+        ("incident", "analyse"),
+    )
+    for agent, name in required:
         prompts.get(agent, name)
     print(f"ok: {len(reg.names())} runbooks, policy, prompts valid")
     return 0

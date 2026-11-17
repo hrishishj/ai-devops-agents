@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     approver_role: str = "Incident.Approver"
     alert_token: SecretStr = SecretStr("")
 
+    # Verified test generation (isolated sandbox; empty = feature unavailable)
+    sandbox_endpoint: str = ""  # Azure Container Apps session pool management endpoint
+    sandbox_session_id: str = "devopsagents"
+
     # Incident automation
     incident_repo: str = ""  # "org/repo" where incident issues are filed
     incident_installation_id: int = 0
