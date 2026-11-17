@@ -47,7 +47,8 @@ prompts/          versioned prompt files (review/discover.v1.md ...)
 runbooks/         registry: <name>/runbook.yaml  (tier, typed params, cooldown, verification)
 policies/         policy-as-data (auto-execution environments, freeze windows, ...)
 evals/            golden datasets + harness (precision/recall/grounding gates)
-infra/            terraform (modules + envs) · container/Dockerfile
+infra/            container/Dockerfile (app image) · sandbox/Dockerfile (test sandbox)
+optional/azure/   OPTIONAL Azure deployment: terraform (modules + envs); see optional/azure/README.md
 tests/            unit · contract · integration
 ```
 
@@ -129,8 +130,8 @@ Automation runbook it names, run `devopsagents check-config`, and list it in `pr
   self-declared name. No two-person rule or approval expiry yet (ADR-0004).
 - **DB migrations** use Alembic (`devopsagents migrate`); in Azure a Container Apps job runs it after each deploy and apps run with
   `DA_CREATE_SCHEMA=false`. Locally the schema is auto-created.
-- **Terraform** passes `fmt` and `validate` (1.9.8, `init -backend=false`) but has never been planned or applied against a real
-  subscription; expect minor fixes on first apply. Network isolation (private endpoints) and queue-driven KEDA scaling are follow-ups.
+- **Azure deployment is optional** (`optional/azure/`). Its Terraform passes `fmt`/`validate` but has never been planned or applied against a
+  real subscription; private networking and queue-driven autoscaling are not covered.
 - Review thread resolution on new pushes and feedback-driven suppression (👎 → fingerprint) are designed but not implemented.
 - Live Azure OpenAI / GitHub / Azure Automation adapters are tested with fakes and mock transports only; run the live evals
   and a staging smoke test before trusting them.

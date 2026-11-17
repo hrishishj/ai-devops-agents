@@ -28,7 +28,7 @@ and migrations drift). Deploys run the `caj-*-migrate` job automatically; to run
 Keep migrations additive (expand/contract) because old and new revisions overlap during a deploy.
 
 ## Enabling deployment
-The Deploy workflow is skipped until `AZURE_CLIENT_ID` is set as a repository variable. To enable it, configure GitHub OIDC
+The optional Azure deploy workflow (`deploy-azure.yml`) is skipped until `AZURE_CLIENT_ID` is set as a repository variable. To enable it, configure GitHub OIDC
 federation for an Azure app registration, then set:
 
 - **Variables:** `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `ACR_NAME`, `ACR_LOGIN_SERVER`, `ACR_ID`,
