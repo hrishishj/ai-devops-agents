@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     github_token: SecretStr = SecretStr("")
     github_api_url: str = "https://api.github.com"
 
-    # LLM provider. Default is any OpenAI-compatible endpoint (Ollama, GitHub Models, Groq, Gemini...).
+    # LLM provider. Default is any OpenAI-compatible endpoint (Ollama, Groq, OpenRouter, Mistral, Gemini...).
     llm_provider: Literal["openai_compat", "azure"] = "openai_compat"
     llm_base_url: str = "http://localhost:11434/v1"  # Ollama
     llm_api_key: SecretStr = SecretStr("")

@@ -152,7 +152,7 @@ def main(argv: list[str] | None = None) -> int:
             live = AzureOpenAIBackend(
                 st.openai_endpoint, st.openai_api_version, st.model_large, st.model_small
             )
-        else:  # default: any OpenAI-compatible endpoint (Ollama, GitHub Models, Groq, Gemini...)
+        else:  # default: any OpenAI-compatible endpoint (Ollama, Groq, OpenRouter, Mistral, Gemini...)
             from devopsagents.integrations.llm.openai_compat import OpenAICompatBackend
 
             live = OpenAICompatBackend(

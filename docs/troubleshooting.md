@@ -12,7 +12,7 @@ Find your symptom, then the likely cause and the fix. Quickest diagnostics first
 |---|---|---|
 | The *AI review* run is **skipped** (grey) | `AI_LLM_BASE_URL` not set; the PR is from a **fork**; or it is a **draft** | Set the variable; use a same-repo branch; mark ready for review |
 | Run succeeds but **nothing on the PR** | Shadow mode is the default | Read the run **Summary**; add `.ai-agents.yml` with `review: {mode: comment}` |
-| `LLM request rejected (HTTP 401/403)` | Bad key or missing permission | GitHub Models: the workflow needs `models: read`; check `AI_LLM_API_KEY` |
+| `LLM request rejected (HTTP 401/403)` | Bad or missing provider key | Check the `AI_LLM_API_KEY` **secret** (not a variable) and that it matches the provider in `AI_LLM_BASE_URL`. GitHub Models was retired on 2026-07-30 |
 | `LLM request rejected (HTTP 404)` | Wrong model id or base URL | Check `AI_LLM_BASE_URL` and the exact model id in the provider's catalogue |
 | `LLM request rejected (HTTP 400)` mentioning `response_format` | The model/endpoint does not support JSON mode | Set `AI_LLM_JSON_MODE=false` (`DA_LLM_JSON_MODE=false`) |
 | `LLM unavailable after 5 attempts` | Rate limit (429) or outage; the client honours `Retry-After` up to 90 s | Wait; use a smaller `AI_CHUNK_TOKENS`; a slower cadence; or a different provider |

@@ -5,19 +5,27 @@ Everything starts in **shadow mode**: the agents run and report what they *would
 
 | Path | Best for | Needs |
 |---|---|---|
-| **A. GitHub Actions + GitHub Models** | zero local setup | a GitHub repo, a free GitHub account |
+| **A. GitHub Actions + a free hosted model (Groq)** | no local setup | a GitHub repo, a free Groq account |
 | **B. Your machine + Ollama** | private code, full control | Python 3.12, ~8 GB free RAM for a 7B model |
 | **C. Docker Compose** | an always-on local stack | Docker; see [local-docker.md](local-docker.md) |
 
-## Path A: GitHub Actions + GitHub Models
-1. Use a **test repository** (a copy of a real project is ideal). Pull requests must come from branches **in the same repo** (not forks).
-2. Copy [`.github/workflows/ai-review.yml`](../.github/workflows/ai-review.yml) into the test repo.
-3. **Settings -> Secrets and variables -> Actions -> Variables**, add:
-   - `AI_LLM_BASE_URL` = `https://models.github.ai/inference`
-   - `AI_LLM_MODEL_LARGE` = a model id from the GitHub Models catalogue (ids change; check the catalogue)
-4. Open a small pull request (a few files, one real change).
-5. **Actions** tab -> the *AI review* run -> **Summary**. You should see counts for candidates, grounded findings and the coverage line.
-6. Nothing appears on the PR itself. That is shadow mode, and it is correct.
+## Path A: GitHub Actions + Groq (free hosted model)
+> GitHub Models, which earlier versions of this guide used, was **retired on 2026-07-30**. Groq's free plan is the simplest hosted replacement.
+> Hosted free tiers may keep your prompts: use a repo whose code you are happy to share, or use **Path B (Ollama)** for private code.
+
+1. **Get a key.** Create a free account at https://console.groq.com, open **API Keys**, create a key and copy it (it is shown once).
+2. Use a **test repository** (a copy of a real project is ideal). Pull requests must come from branches **in the same repo** (not forks).
+3. Copy [`.github/workflows/ai-review.yml`](../.github/workflows/ai-review.yml) into the test repo (skip this if you are using this repo).
+4. **Settings -> Secrets and variables -> Actions**:
+   - **Secrets** tab -> New repository secret: `AI_LLM_API_KEY` = your Groq key
+   - **Variables** tab -> `AI_LLM_BASE_URL` = `https://api.groq.com/openai/v1`
+   - **Variables** tab -> `AI_LLM_MODEL_LARGE` = `llama-3.3-70b-versatile`
+5. Open a small pull request (a few files, one real change).
+6. **Actions** tab -> the *AI review* run -> **Summary**. You should see counts for candidates, grounded findings and the coverage line.
+7. Nothing appears on the PR itself. That is shadow mode, and it is correct.
+
+Groq's free plan limits tokens per minute, so a first run may show a rate-limit retry (it waits and retries by itself). If a run fails with `HTTP 400` mentioning
+`response_format`, add the variable `AI_LLM_JSON_MODE` = `false`.
 
 ## Path B: your machine + Ollama
 ```bash

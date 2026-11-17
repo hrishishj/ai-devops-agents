@@ -2,7 +2,7 @@
 
 Policy-gated AI agents for **pull-request review**, **security triage** and **IT incident response**.
 
-**Free by default:** runs inside GitHub Actions or on your own machine with a free LLM (Ollama, GitHub Models, Groq, Gemini)
+**Free by default:** runs inside GitHub Actions or on your own machine with a free LLM (Ollama, Groq, OpenRouter, Mistral, Gemini)
 and needs no paid service. Azure (Container Apps, PostgreSQL, Service Bus, Azure OpenAI, Terraform) is an optional
 deployment target, not a requirement. Start here: **[docs/free-setup.md](docs/free-setup.md)**.
 
