@@ -8,10 +8,23 @@ RUN pip install --prefix=/install ".[azure]"
 
 FROM python:3.12-slim AS runtime
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
-RUN pip install --no-cache-dir semgrep==1.86.0 \
+# Apply Debian security updates (the base image lags, e.g. zlib1g fixes).
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+# Semgrep lives in its OWN virtualenv so its pinned dependencies (opentelemetry, pydantic, protobuf)
+# can never clash with, or be overwritten by, the application's packages.
+RUN python -m venv /opt/semgrep \
+    && /opt/semgrep/bin/pip install --no-cache-dir --upgrade pip semgrep==1.185.0 \
+    && ln -s /opt/semgrep/bin/semgrep /usr/local/bin/semgrep \
     && groupadd -r agents && useradd -r -g agents -d /app agents
 WORKDIR /app
 COPY --from=build /install /usr/local
+# The runtime never installs packages, so remove pip from both interpreters. Besides shrinking the
+# attack surface, this drops pip's bundled bom.cdx.json, which lists its vendored setuptools 70.3.0
+# and makes scanners report CVE-2025-47273 even though setuptools is not installed.
+RUN /opt/semgrep/bin/pip uninstall -y pip \
+    && pip uninstall -y pip
 # Runtime data the service reads: prompts, runbook registry, policy (reviewed like code).
 COPY prompts ./prompts
 COPY runbooks ./runbooks

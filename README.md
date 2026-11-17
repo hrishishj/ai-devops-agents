@@ -105,9 +105,8 @@ Automation runbook it names, run `devopsagents check-config`, and list it in `pr
   default remains shared-token mode with a self-declared approver (ADR-0004). No two-person rule or approval expiry yet.
 - **DB migrations** use Alembic (`devopsagents migrate`); in Azure a Container Apps job runs it after each deploy and apps run with
   `DA_CREATE_SCHEMA=false`. Locally the schema is auto-created.
-- **Terraform** has not been `validate`d or applied (no Terraform CLI where this was authored) — CI runs `fmt`/`validate`;
-  expect minor provider-schema fixes on first apply. Network isolation (private endpoints) and queue-driven KEDA scaling
-  are follow-ups.
+- **Terraform** passes `fmt` and `validate` (1.9.8, `init -backend=false`) but has never been planned or applied against a real
+  subscription; expect minor fixes on first apply. Network isolation (private endpoints) and queue-driven KEDA scaling are follow-ups.
 - Review thread resolution on new pushes and feedback-driven suppression (👎 → fingerprint) are designed but not implemented.
 - Live Azure OpenAI / GitHub / Azure Automation adapters are tested with fakes and mock transports only; run the live evals
   and a staging smoke test before trusting them.
