@@ -88,9 +88,17 @@ class DockerSandbox:
             STDIN_RUNNER,
         ]
 
-    def run_pytest(self, files: dict[str, str], target: str, timeout_seconds: int = 60) -> SandboxResult:
+    def run_pytest(
+        self,
+        files: dict[str, str],
+        target: str,
+        timeout_seconds: int = 60,
+        cover: list[str] | None = None,
+    ) -> SandboxResult:
         name = f"dasbx-{uuid.uuid4().hex[:12]}"
-        payload = json.dumps({"files": files, "target": target, "timeout": timeout_seconds})
+        payload = json.dumps(
+            {"files": files, "target": target, "timeout": timeout_seconds, "cover": cover or []}
+        )
         try:
             proc: Any = self._run(
                 self._argv(name),

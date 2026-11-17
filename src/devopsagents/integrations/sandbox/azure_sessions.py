@@ -45,8 +45,16 @@ class AzureSessionsSandbox:  # pragma: no cover - live Azure; contract-tested wi
         tok = self._token.get_token("https://dynamicsessions.io/.default").token
         return {"Authorization": f"Bearer {tok}"}
 
-    def run_pytest(self, files: dict[str, str], target: str, timeout_seconds: int = 60) -> SandboxResult:
-        code = inline_runner({"files": files, "target": target, "timeout": timeout_seconds})
+    def run_pytest(
+        self,
+        files: dict[str, str],
+        target: str,
+        timeout_seconds: int = 60,
+        cover: list[str] | None = None,
+    ) -> SandboxResult:
+        code = inline_runner(
+            {"files": files, "target": target, "timeout": timeout_seconds, "cover": cover or []}
+        )
         try:
             r = self._http.post(
                 f"{self._endpoint}/code/execute",
