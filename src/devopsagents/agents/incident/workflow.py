@@ -261,9 +261,10 @@ class IncidentAgent:
 
 def _user_message(alert: AlertEvent, evidence: list[str]) -> str:
     ev = "\n".join(f"[{i}] {e}" for i, e in enumerate(evidence)) or "(none collected)"
-    runbooks = ""
+    # Annotations written by whoever authored the alert rule: useful context, but still untrusted data.
+    extra = "".join(f"{k}: {alert.raw[k]}\n" for k in ("summary", "description") if alert.raw.get(k))
     return (
         f"<alert>\ntitle: {alert.title}\nseverity: {alert.severity}\nresource: {alert.resource_id}\n"
-        f"environment: {alert.environment}\nfired_at: {alert.fired_at}\n</alert>\n"
-        f"<evidence>\n{ev}\n</evidence>{runbooks}"
+        f"environment: {alert.environment}\nfired_at: {alert.fired_at}\n{extra}</alert>\n"
+        f"<evidence>\n{ev}\n</evidence>"
     )

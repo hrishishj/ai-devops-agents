@@ -56,8 +56,11 @@ class Settings(BaseSettings):
     admin_token: SecretStr = SecretStr("")
     # "token": shared secret, self-declared approver (dev/pilot). "easyauth": validated Entra principal
     # injected by Container Apps Easy Auth / APIM (production; ingress must be reachable only via it).
-    admin_auth: Literal["token", "easyauth"] = "token"
+    # "github": approvers send their own GitHub token; GitHub verifies identity and write access (free).
+    admin_auth: Literal["token", "easyauth", "github"] = "token"
     approver_role: str = "Incident.Approver"
+    approver_repo: str = ""  # github mode: approvers need push access here (defaults to incident_repo)
+    approvers: str = ""  # github mode: optional comma-separated allow-list of logins
     alert_token: SecretStr = SecretStr("")
 
     # Verified test generation (isolated sandbox; empty = feature unavailable)
@@ -68,6 +71,12 @@ class Settings(BaseSettings):
     incident_repo: str = ""  # "org/repo" where incident issues are filed
     incident_installation_id: int = 0
     log_analytics_workspace_id: str = ""
+    # Free incident path: Prometheus for evidence/verification, GitHub Actions to execute runbooks.
+    prometheus_url: str = ""  # e.g. http://prometheus:9090
+    prometheus_token: SecretStr = SecretStr("")
+    runbook_repo: str = ""  # "org/repo" holding the runbook workflow; set to run runbooks via Actions
+    runbook_workflow: str = "runbook.yml"
+    runbook_ref: str = "main"
     applicationinsights_connection_string: str = ""
     automation_account_url: str = ""
     policy_file: str = "policies/default.yaml"
