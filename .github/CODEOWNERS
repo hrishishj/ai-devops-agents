@@ -1,0 +1,7 @@
+# Behaviour-changing, safety-critical paths need explicit review.
+/runbooks/            @OWNER-sre
+/policies/            @OWNER-sre
+/prompts/             @OWNER-platform
+/src/devopsagents/core/policy/   @OWNER-sre @OWNER-platform
+/infra/               @OWNER-platform
+# Replace @OWNER-* with real GitHub users/teams before enabling "require code owner review".

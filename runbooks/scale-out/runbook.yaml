@@ -1,0 +1,20 @@
+name: scale-out
+description: Increase replica count (or node count) by a bounded step.
+tier: 1
+automation_runbook: Scale-Out
+params_schema:
+  type: object
+  additionalProperties: false
+  required: [target_type, target_name, resource_group, add_replicas]
+  properties:
+    target_type: { enum: [ContainerApp, AKSNodePool, AKSDeployment] }
+    target_name: { type: string, pattern: "^[a-zA-Z0-9._-]{1,128}$" }
+    resource_group: { type: string, pattern: "^[a-zA-Z0-9._()-]{1,90}$" }
+    add_replicas: { type: integer, minimum: 1, maximum: 3 }
+allowed_environments: [dev, staging, prod]
+cooldown_seconds: 600
+max_per_hour: 3
+rollback: scale-in
+verification:
+  description: Saturation metric (CPU/queue depth) drops below alert threshold.
+  wait_seconds: 300

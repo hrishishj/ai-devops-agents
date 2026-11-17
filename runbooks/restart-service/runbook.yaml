@@ -1,0 +1,20 @@
+name: restart-service
+description: Rolling restart of a Container App revision, AKS deployment or App Service.
+tier: 1
+automation_runbook: Restart-Service
+params_schema:
+  type: object
+  additionalProperties: false
+  required: [service_type, service_name, resource_group]
+  properties:
+    service_type: { enum: [ContainerApp, AKS, AppService] }
+    service_name: { type: string, pattern: "^[a-zA-Z0-9._-]{1,128}$" }
+    resource_group: { type: string, pattern: "^[a-zA-Z0-9._()-]{1,90}$" }
+    namespace: { type: string, pattern: "^[a-z0-9-]{1,63}$" }
+    cluster_name: { type: string, pattern: "^[a-zA-Z0-9-]{1,63}$" }
+allowed_environments: [dev, staging, prod]
+cooldown_seconds: 900
+max_per_hour: 2
+verification:
+  description: Health endpoint returns 200 and the triggering alert resolves.
+  wait_seconds: 180

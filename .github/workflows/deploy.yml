@@ -1,4 +1,4 @@
-name: Deploy to Azure
+name: Deploy
 
 on:
   push:
@@ -6,177 +6,107 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: Target environment
-        required: true
-        default: staging
         type: choice
-        options: [staging, production]
+        options: [staging, prod]
+        default: staging
+
+permissions:
+  id-token: write # OIDC to Azure: no stored credentials
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.event.inputs.environment || 'staging' }}
+  cancel-in-progress: false
 
 env:
-  REGISTRY:          ${{ secrets.ACR_LOGIN_SERVER }}
-  IMAGE_NAME:        ai-devops-agents
-  RESOURCE_GROUP:    ${{ secrets.AZURE_RESOURCE_GROUP }}
-  CONTAINER_APP:     ai-devops-agents-app
-  CONSUMER_APP:      ai-devops-agents-consumer
+  ENVIRONMENT: ${{ github.event.inputs.environment || 'staging' }}
 
 jobs:
-  # ------------------------------------------------------------------ #
-  # Build & push Docker image
-  # ------------------------------------------------------------------ #
   build:
-    name: Build & Push Image
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
-      image_tag: ${{ steps.meta.outputs.version }}
-
+      image: ${{ steps.meta.outputs.image }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Azure login
-        uses: azure/login@v2
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Log in to ACR
-        run: az acr login --name ${{ secrets.ACR_NAME }}
-
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=sha,prefix=,format=short
-            type=ref,event=branch
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push
-        uses: docker/build-push-action@v5
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - id: meta
+        run: echo "image=${{ vars.ACR_LOGIN_SERVER }}/devopsagents:${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+      - run: az acr login --name "${{ vars.ACR_NAME }}"
+      - uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile
+          file: infra/container/Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+          tags: ${{ steps.meta.outputs.image }}
 
-  # ------------------------------------------------------------------ #
-  # Run integration tests
-  # ------------------------------------------------------------------ #
-  integration-test:
-    name: Integration Tests
-    runs-on: ubuntu-latest
+  apply:
     needs: build
-    timeout-minutes: 15
-    environment: staging
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Run integration tests
-        env:
-          AZURE_OPENAI_ENDPOINT:   ${{ secrets.AZURE_OPENAI_ENDPOINT }}
-          AZURE_OPENAI_API_KEY:    ${{ secrets.AZURE_OPENAI_API_KEY }}
-          COSMOS_ENDPOINT:         ${{ secrets.COSMOS_ENDPOINT }}
-          COSMOS_KEY:              ${{ secrets.COSMOS_KEY }}
-          REDIS_HOST:              ${{ secrets.REDIS_HOST }}
-          REDIS_PASSWORD:          ${{ secrets.REDIS_PASSWORD }}
-          GITHUB_TOKEN:            ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          pytest tests/integration/ -v --tb=short -x \
-            --junitxml=test-results/integration-results.xml
-
-      - name: Publish results
-        uses: EnricoMi/publish-unit-test-result-action@v2
-        if: always()
-        with:
-          files: test-results/integration-results.xml
-          check_name: Integration Test Results
-
-  # ------------------------------------------------------------------ #
-  # Deploy webhook API Container App
-  # ------------------------------------------------------------------ #
-  deploy-api:
-    name: Deploy API
     runs-on: ubuntu-latest
-    needs: [build, integration-test]
-    timeout-minutes: 15
-    environment: ${{ github.event.inputs.environment || 'staging' }}
-
+    timeout-minutes: 30
+    environment: ${{ github.event.inputs.environment || 'staging' }} # prod requires reviewers
     steps:
-      - name: Azure login
-        uses: azure/login@v2
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Deploy API Container App
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - name: Terraform apply
+        working-directory: infra/terraform
+        env:
+          ARM_USE_OIDC: "true"
+          ARM_USE_AZUREAD: "true"
+          ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_image: ${{ needs.build.outputs.image }}
+          TF_VAR_acr_login_server: ${{ vars.ACR_LOGIN_SERVER }}
+          TF_VAR_acr_id: ${{ vars.ACR_ID }}
+          TF_VAR_github_app_id: ${{ vars.GH_APP_ID }}
+          TF_VAR_github_app_private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          TF_VAR_github_webhook_secret: ${{ secrets.GH_WEBHOOK_SECRET }}
+          TF_VAR_alert_token: ${{ secrets.ALERT_TOKEN }}
+          TF_VAR_admin_token: ${{ secrets.ADMIN_TOKEN }}
         run: |
-          az containerapp update \
-            --name ${{ env.CONTAINER_APP }} \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image_tag }} \
-            --set-env-vars \
-              OTEL_SERVICE_NAME=ai-devops-agents-api \
-              AZURE_KEYVAULT_URL=${{ secrets.AZURE_KEYVAULT_URL }}
-
-      - name: Verify deployment
+          terraform init \
+            -backend-config="resource_group_name=${{ vars.TFSTATE_RG }}" \
+            -backend-config="storage_account_name=${{ vars.TFSTATE_STORAGE }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=ai-devops-agents-${ENVIRONMENT}.tfstate" \
+            -backend-config="use_azuread_auth=true"
+          terraform apply -auto-approve -var-file="envs/${ENVIRONMENT}.tfvars"
+      - name: Run database migrations
+        working-directory: infra/terraform
         run: |
-          APP_URL=$(az containerapp show \
-            --name ${{ env.CONTAINER_APP }} \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --query "properties.configuration.ingress.fqdn" -o tsv)
-          
-          echo "Checking health at https://${APP_URL}/health"
-          for i in {1..10}; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://${APP_URL}/health")
-            if [ "$STATUS" == "200" ]; then
-              echo "Health check passed (attempt $i)."
-              exit 0
-            fi
-            echo "Attempt $i: status=$STATUS — retrying in 15s..."
+          RG=$(terraform output -raw resource_group)
+          JOB=$(terraform output -raw migrate_job_name)
+          EXEC=$(az containerapp job start -n "$JOB" -g "$RG" --query name -o tsv)
+          for i in $(seq 1 40); do
+            STATUS=$(az containerapp job execution show -n "$JOB" -g "$RG" --job-execution-name "$EXEC" --query properties.status -o tsv)
+            echo "migration: $STATUS"
+            case "$STATUS" in
+              Succeeded) exit 0 ;;
+              Failed|Stopped|Degraded) echo "migration failed" && exit 1 ;;
+            esac
             sleep 15
           done
-          echo "Health check failed after 10 attempts."
-          exit 1
-
-  # ------------------------------------------------------------------ #
-  # Deploy Service Bus Consumer
-  # ------------------------------------------------------------------ #
-  deploy-consumer:
-    name: Deploy Consumer
-    runs-on: ubuntu-latest
-    needs: [build, integration-test]
-    timeout-minutes: 15
-    environment: ${{ github.event.inputs.environment || 'staging' }}
-
-    steps:
-      - name: Azure login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Deploy Consumer Container App
+          echo "migration timed out" && exit 1
+      - name: Smoke test
+        working-directory: infra/terraform
         run: |
-          az containerapp update \
-            --name ${{ env.CONSUMER_APP }} \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
-            --image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image_tag }} \
-            --set-env-vars \
-              OTEL_SERVICE_NAME=ai-devops-agents-consumer \
-              AZURE_KEYVAULT_URL=${{ secrets.AZURE_KEYVAULT_URL }}
+          URL=$(terraform output -raw api_url)
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$URL/health/ready" || true)
+            [ "$code" = "200" ] && echo "healthy" && exit 0
+            sleep 15
+          done
+          echo "readiness check failed" && exit 1

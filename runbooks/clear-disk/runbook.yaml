@@ -1,0 +1,19 @@
+name: clear-disk
+description: Remove rotated logs and temp files older than N days on a VM or node (non-destructive to data).
+tier: 1
+automation_runbook: Clear-DiskSpace
+params_schema:
+  type: object
+  additionalProperties: false
+  required: [target_type, target_name, resource_group]
+  properties:
+    target_type: { enum: [VM, AKSNode] }
+    target_name: { type: string, pattern: "^[a-zA-Z0-9._-]{1,128}$" }
+    resource_group: { type: string, pattern: "^[a-zA-Z0-9._()-]{1,90}$" }
+    retention_days: { type: integer, minimum: 1, maximum: 90 }
+allowed_environments: [dev, staging, prod]
+cooldown_seconds: 3600
+max_per_hour: 1
+verification:
+  description: Free disk space exceeds 20% and the triggering alert resolves.
+  wait_seconds: 120

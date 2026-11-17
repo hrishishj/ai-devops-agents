@@ -1,113 +1,99 @@
 [build-system]
-requires      = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
-name        = "ai-devops-agents"
-version     = "1.0.0"
-description = "Azure + GitHub AI agents for software development and IT operations automation"
-readme      = "README.md"
+name = "devopsagents"
+version = "0.1.0"
+description = "Policy-gated AI agents for code review, security triage and IT incident response."
+readme = "README.md"
 requires-python = ">=3.12"
-license     = { text = "MIT" }
-
-authors = [
-    { name = "AI DevOps Team" }
+license = { text = "MIT" }
+dependencies = [
+  "pydantic>=2.7",
+  "pydantic-settings>=2.3",
+  "fastapi>=0.111",
+  "uvicorn>=0.30",
+  "httpx>=0.27",
+  "sqlalchemy>=2.0.30",
+  "pyyaml>=6.0",
+  "jsonschema>=4.22",
+  "pyjwt[crypto]>=2.8",
+  "tenacity>=8.3",
+  "alembic>=1.13",
 ]
 
-keywords = [
-    "azure", "openai", "github", "devops", "agents",
-    "code-review", "it-ops", "automation"
+[project.optional-dependencies]
+azure = [
+  "openai>=1.40",
+  "azure-identity>=1.17",
+  "azure-servicebus>=7.12",
+  "psycopg[binary]>=3.2",
+  "opentelemetry-sdk>=1.25",
+  "azure-monitor-opentelemetry-exporter>=1.0.0b25",
+]
+dev = [
+  "pytest>=8.2",
+  "pytest-cov>=5.0",
+  "ruff>=0.5",
+  "mypy>=1.10",
+  "import-linter>=2.0",
+  "types-PyYAML",
+  "types-jsonschema",
 ]
 
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "Programming Language :: Python :: 3.12",
-    "Topic :: Software Development :: Libraries",
-    "Topic :: System :: Systems Administration",
-]
+[project.scripts]
+devopsagents = "devopsagents.apps.cli.main:main"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["agents*", "api*", "shared*"]
+[tool.hatch.build.targets.wheel]
+packages = ["src/devopsagents"]
 
-# ──────────────────────────────────────────────
-# Ruff (linter + formatter)
-# ──────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = ["integration: needs live external services"]
+pythonpath = ["src"]
 
 [tool.ruff]
+line-length = 110
 target-version = "py312"
-line-length    = 100
-src            = ["agents", "api", "shared", "tests"]
+src = ["src", "tests"]
 
 [tool.ruff.lint]
-select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "I",   # isort
-    "B",   # flake8-bugbear
-    "C4",  # flake8-comprehensions
-    "UP",  # pyupgrade
-    "S",   # flake8-bandit (security)
-    "N",   # pep8-naming
-    "ANN", # flake8-annotations (type hints)
-    "RUF", # ruff-specific
-]
-
-ignore = [
-    "ANN101",  # Missing type annotation for `self`
-    "ANN102",  # Missing type annotation for `cls`
-    "ANN401",  # Dynamically typed expressions (Any)
-    "S101",    # Use of assert (fine in tests)
-    "S603",    # subprocess call (we deliberately allow it in IT Ops)
-    "E501",    # Line too long — handled by formatter
-]
+select = ["E", "F", "I", "B", "UP", "S", "SIM", "RUF"]
+ignore = ["S101"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["ANN", "S", "N"]
-
-[tool.ruff.format]
-quote-style = "double"
-indent-style = "space"
-
-# ──────────────────────────────────────────────
-# mypy
-# ──────────────────────────────────────────────
+"tests/**" = ["S105", "S106", "S108", "E501", "B017", "RUF012", "RUF059", "RUF015"]
 
 [tool.mypy]
-python_version         = "3.12"
-strict                 = true
-ignore_missing_imports = true
-warn_return_any        = true
-warn_unused_configs    = true
-exclude                = ["tests/", "infra/"]
+python_version = "3.12"
+strict = true
+mypy_path = "src"
+plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = [
-    "azure.*",
-    "openai.*",
-    "redis.*",
-    "github.*",
-]
+module = ["azure.*", "openai.*", "jwt.*", "opentelemetry.sdk.*"]
 ignore_missing_imports = true
 
-# ──────────────────────────────────────────────
-# Coverage
-# ──────────────────────────────────────────────
+# Layering: domain <- core <- integrations <- agents <- apps
+[tool.importlinter]
+root_package = "devopsagents"
+include_external_packages = true
 
-[tool.coverage.run]
-source  = ["agents", "api", "shared"]
-omit    = ["tests/*", "infra/*", "*/__init__.py"]
-branch  = true
-
-[tool.coverage.report]
-show_missing         = true
-skip_covered         = false
-fail_under           = 80
-exclude_lines        = [
-    "pragma: no cover",
-    "if TYPE_CHECKING:",
-    "raise NotImplementedError",
-    "if __name__ == .__main__.:",
+[[tool.importlinter.contracts]]
+name = "Layered architecture"
+type = "layers"
+layers = [
+  "devopsagents.apps",
+  "devopsagents.agents",
+  "devopsagents.integrations",
+  "devopsagents.core",
+  "devopsagents.domain",
 ]
+
+[[tool.importlinter.contracts]]
+name = "Domain is pure"
+type = "forbidden"
+source_modules = ["devopsagents.domain"]
+forbidden_modules = ["sqlalchemy", "httpx", "fastapi", "openai", "azure"]
