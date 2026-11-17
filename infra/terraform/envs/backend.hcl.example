@@ -1,0 +1,6 @@
+# Copy to envs/<env>.backend.hcl (gitignored) and fill in.
+resource_group_name  = "rg-tfstate"
+storage_account_name = "<unique-storage-account>"
+container_name       = "tfstate"
+key                  = "ai-devops-agents-<env>.tfstate"
+use_azuread_auth     = true
