@@ -17,3 +17,11 @@ require_evidence: true
 #     end:   2027-01-03T00:00:00Z
 #     reason: holiday change freeze
 freeze_windows: []
+
+# A pending human approval expires after this many minutes (a persisting alert re-triggers analysis).
+approval_ttl_minutes: 120
+
+# Actions at or above this tier, in these environments, need TWO distinct verified approvers
+# (admin_auth=github or easyauth; self-declared names cannot satisfy it).
+two_person_min_tier: 2
+two_person_environments: [prod]

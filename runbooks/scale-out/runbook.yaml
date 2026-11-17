@@ -15,6 +15,13 @@ allowed_environments: [dev, staging, prod]
 cooldown_seconds: 600
 max_per_hour: 3
 rollback: scale-in
+# Parameters for scale-in, derived from this runbook's. auto_rollback is deliberately left off (default):
+# undoing a scale-out that did not help would reduce capacity in the middle of an incident.
+rollback_params:
+  target_type: "{target_type}"
+  target_name: "{target_name}"
+  resource_group: "{resource_group}"
+  remove_replicas: "{add_replicas}"
 verification:
   description: Saturation metric (CPU/queue depth) drops below alert threshold.
   wait_seconds: 300
