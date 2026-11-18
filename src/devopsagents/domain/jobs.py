@@ -48,7 +48,3 @@ class Job(BaseModel):
     error: str | None = None
     created_at: datetime
     updated_at: datetime
-
-    @property
-    def is_terminal(self) -> bool:
-        return self.status in TERMINAL_STATUSES

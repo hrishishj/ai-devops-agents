@@ -25,6 +25,3 @@ class InMemoryQueue:
         while q and len(out) < max_messages:
             out.append(q.popleft()[0])
         return out
-
-    def depth(self, queue: str) -> int:
-        return len(self._q.get(queue, ()))

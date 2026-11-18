@@ -41,16 +41,3 @@ def configure_logging(level: str = "INFO") -> None:
     root = logging.getLogger()
     root.handlers[:] = [handler]
     root.setLevel(level)
-
-
-def configure_azure_monitor(connection_string: str) -> None:  # pragma: no cover - needs SDK/exporter
-    """Wire OTel -> Application Insights. Requires the `azure` extra."""
-    from azure.monitor.opentelemetry.exporter import AzureMonitorTraceExporter
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
-
-    provider = TracerProvider()
-    provider.add_span_processor(
-        BatchSpanProcessor(AzureMonitorTraceExporter(connection_string=connection_string))
-    )
-    trace.set_tracer_provider(provider)
