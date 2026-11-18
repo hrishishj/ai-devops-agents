@@ -58,7 +58,9 @@ jobs:
           DA_LLM_API_KEY: ${{ secrets.AI_LLM_API_KEY }}
           DA_LLM_MODEL_LARGE: ${{ vars.AI_LLM_MODEL_LARGE }}
           DA_LLM_MODEL_SMALL: ${{ vars.AI_LLM_MODEL_SMALL || vars.AI_LLM_MODEL_LARGE }}
+          DA_LLM_MAX_RETRIES: ${{ vars.AI_LLM_MAX_RETRIES || '4' }}
+          DA_LLM_BACKOFF_SECONDS: ${{ vars.AI_LLM_BACKOFF_SECONDS || '1' }}
           DA_LLM_JSON_MODE: ${{ vars.AI_LLM_JSON_MODE || 'true' }}
           DA_REVIEW_CHUNK_TOKENS: ${{ vars.AI_CHUNK_TOKENS || '4000' }}
           DA_SANDBOX_KIND: ${{ vars.AI_TESTGEN == 'true' && 'docker' || 'none' }}
-        run: .venv/bin/devopsagents run-pr --repo "$REPO" --pr "$PR_NUMBER"
+        run: .venv/bin/devopsagents run-pr --repo "$REPO" --pr "$PR_NUMBER" ${{ vars.AI_STRICT == 'true' && '--strict' || '' }}

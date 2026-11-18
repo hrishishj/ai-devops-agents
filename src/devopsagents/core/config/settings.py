@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     llm_api_key: SecretStr = SecretStr("")
     llm_model_large: str = "qwen2.5-coder:7b"
     llm_model_small: str = "qwen2.5-coder:7b"
+    llm_max_retries: int = Field(default=4, ge=0, le=10)  # free tiers: raise (e.g. 6) and the backoff
+    llm_backoff_seconds: float = Field(default=1.0, ge=0.0, le=60.0)  # doubles each attempt
     llm_json_mode: bool = True  # send response_format=json_object (disable if the model rejects it)
 
     # Azure OpenAI (optional; Entra auth, no API key)
@@ -83,14 +85,12 @@ class Settings(BaseSettings):
     runbook_repo: str = ""  # "org/repo" holding the runbook workflow; set to run runbooks via Actions
     runbook_workflow: str = "runbook.yml"
     runbook_ref: str = "main"
-    applicationinsights_connection_string: str = ""
     automation_account_url: str = ""
     policy_file: str = "policies/default.yaml"
     runbooks_dir: str = "runbooks"
     prompts_dir: str = "prompts"
 
     # Review defaults
-    max_review_comments: int = Field(default=15, ge=1, le=100)
     review_chunk_tokens: int = 6000
 
     lease_seconds: int = 300

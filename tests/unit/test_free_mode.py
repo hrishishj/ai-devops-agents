@@ -202,3 +202,15 @@ def test_cli_run_pr_writes_the_step_summary(repo_root, tmp_path, monkeypatch):
     assert cli_main(["run-pr", "--repo", "o/r", "--pr", "7"]) == 0
     assert "AI agents" in out.read_text(encoding="utf-8") and len(gh.posted) == 1
     assert DIFF  # fixture sanity
+
+
+def test_llm_retry_settings_have_safe_defaults_and_bounds():
+    import pytest
+    from pydantic import ValidationError
+
+    from devopsagents.core.config.settings import Settings
+
+    s = Settings(database_url="sqlite+pysqlite://")
+    assert (s.llm_max_retries, s.llm_backoff_seconds) == (4, 1.0)
+    with pytest.raises(ValidationError):
+        Settings(database_url="sqlite+pysqlite://", llm_max_retries=99)

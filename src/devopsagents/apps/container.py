@@ -148,6 +148,8 @@ def build_container(
         per_scope_budget=settings.daily_token_budget_per_repo,
         global_budget=settings.daily_token_budget_global,
         max_output_tokens=settings.max_output_tokens,
+        max_retries=settings.llm_max_retries,
+        backoff_base=settings.llm_backoff_seconds,
         kill_switch=lambda: settings.kill_switch,
     )
     prompts = PromptRegistry(resolve_data(base, settings.prompts_dir))
