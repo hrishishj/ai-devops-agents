@@ -11,11 +11,12 @@ Find your symptom, then the likely cause and the fix. Quickest diagnostics first
 | Symptom | Cause | Fix |
 |---|---|---|
 | The *AI review* run is **skipped** (grey) | `AI_LLM_BASE_URL` not set; the PR is from a **fork**; or it is a **draft** | Set the variable; use a same-repo branch; mark ready for review |
+| Run is green but the Summary says `review: dead` | `run-pr` exits 0 on agent failure unless strict | Set variable `AI_STRICT`=`true` so the run fails when an agent fails |
 | Run succeeds but **nothing on the PR** | Shadow mode is the default | Read the run **Summary**; add `.ai-agents.yml` with `review: {mode: comment}` |
 | `LLM request rejected (HTTP 401/403)` | Bad or missing provider key | Check the `AI_LLM_API_KEY` **secret** (not a variable) and that it matches the provider in `AI_LLM_BASE_URL`. GitHub Models was retired on 2026-07-30 |
 | `LLM request rejected (HTTP 404)` | Wrong model id or base URL | Check `AI_LLM_BASE_URL` and the exact model id in the provider's catalogue |
 | `LLM request rejected (HTTP 400)` mentioning `response_format` | The model/endpoint does not support JSON mode | Set `AI_LLM_JSON_MODE=false` (`DA_LLM_JSON_MODE=false`) |
-| `LLM unavailable after 5 attempts` | Rate limit (429) or outage; the client honours `Retry-After` up to 90 s | Wait; use a smaller `AI_CHUNK_TOKENS`; a slower cadence; or a different provider |
+| `LLM unavailable after 5 attempts` | Rate limit (429) or outage; the client honours `Retry-After` up to 90 s | The Summary now shows the provider's last error. Free pools often need minutes: set variables `AI_LLM_MAX_RETRIES`=6 and `AI_LLM_BACKOFF_SECONDS`=20; use a smaller `AI_CHUNK_TOKENS`; or another model/provider |
 | `invalid model output` | The model cannot produce the required JSON even after one repair attempt | Use a stronger model; keep JSON mode on |
 | `BudgetExceeded: daily token budget exhausted` | Per-repo (2,000,000) or global (20,000,000) daily tokens used | Raise `DA_DAILY_TOKEN_BUDGET_PER_REPO` / `DA_DAILY_TOKEN_BUDGET_GLOBAL` after checking for a runaway repo |
 | `GitHub API 403: Resource not accessible by integration` | The token lacks a permission | Needs: Pull requests **write** (reviews, thread resolve), Checks **write** (security check), Contents **read**, Issues **write** (incident tickets), Actions **write** (runbook dispatch) |
