@@ -197,7 +197,8 @@ class LLMGateway:
                     if exc.retry_after:  # honour the server hint, but never wait unboundedly
                         wait = max(wait, min(exc.retry_after, _MAX_RETRY_AFTER))
                     self._sleep(wait)
-        raise TransientLLMError(f"LLM unavailable after {self._retries + 1} attempts") from last
+        attempts = self._retries + 1
+        raise TransientLLMError(f"LLM unavailable after {attempts} attempts; last error: {last}") from last
 
     def _check_budget(self, scope: str) -> None:
         if self._store.usage_today(scope) >= self._scope_budget:
